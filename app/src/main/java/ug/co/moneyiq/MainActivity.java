@@ -68,7 +68,6 @@ public class MainActivity extends Activity {
         root.setLayoutParams(matchParent());
 
         root.addView(buildHeader());
-        root.addView(buildTabs());
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(false);
@@ -87,25 +86,52 @@ public class MainActivity extends Activity {
 
     private View buildHeader() {
         LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(20), dp(20), dp(20), dp(18));
-        header.setBackgroundColor(navy);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(10), dp(14), dp(10), dp(12));
+        header.setBackgroundColor(Color.rgb(44, 47, 51));
+
+        Button menu = toolbarButton("Menu");
+        menu.setOnClickListener(v -> showMenu());
+        header.addView(menu, new LinearLayout.LayoutParams(dp(72), dp(46)));
+
+        LinearLayout titleBlock = new LinearLayout(this);
+        titleBlock.setOrientation(LinearLayout.VERTICAL);
+        titleBlock.setPadding(dp(8), 0, dp(8), 0);
 
         TextView name = new TextView(this);
         name.setText("MoneyIQ");
         name.setTextColor(Color.WHITE);
-        name.setTextSize(30);
+        name.setTextSize(22);
         name.setTypeface(Typeface.DEFAULT_BOLD);
-        header.addView(name);
+        titleBlock.addView(name);
 
         TextView tagline = new TextView(this);
         tagline.setText("Know your money better");
-        tagline.setTextColor(Color.rgb(185, 225, 217));
-        tagline.setTextSize(14);
-        tagline.setPadding(0, dp(4), 0, 0);
-        header.addView(tagline);
+        tagline.setTextColor(Color.rgb(196, 208, 212));
+        tagline.setTextSize(12);
+        titleBlock.addView(tagline);
+
+        header.addView(titleBlock, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        Button add = toolbarButton("+");
+        add.setTextSize(24);
+        add.setOnClickListener(v -> showAddTransaction());
+        header.addView(add, new LinearLayout.LayoutParams(dp(48), dp(46)));
 
         return header;
+    }
+
+    private Button toolbarButton(String text) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(13);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setPadding(0, 0, 0, 0);
+        b.setBackground(round(Color.TRANSPARENT, Color.rgb(92, 104, 110), 8));
+        return b;
     }
 
     private View buildTabs() {
@@ -154,10 +180,56 @@ public class MainActivity extends Activity {
     }
 
     private void styleTab(Button b, boolean active) {
+        if (b == null) return;
         b.setTextColor(active ? Color.WHITE : tealDark);
         b.setBackground(round(active ? teal : Color.rgb(236, 252, 248), active ? teal : Color.rgb(168, 236, 222), 12));
     }
 
+
+    private void showMenu() {
+        content.removeAllViews();
+        content.addView(sectionTitle("Transactions"));
+        content.addView(navItem("Overview", "Monthly summary and recent activity", v -> showDashboard()));
+        content.addView(navItem("Add transaction", "Expense or income entry", v -> showAddTransaction()));
+        content.addView(navItem("Records / Search", "Browse latest transactions", v -> showTransactions()));
+
+        content.addView(sectionTitle("Accounts and budgets"));
+        content.addView(navItem("Accounts", "Balances and account setup", v -> showManage()));
+        content.addView(navItem("Budgets", "Monthly budget setup coming next", v -> toast("Budgets are next on the roadmap.")));
+
+        content.addView(sectionTitle("Analysis"));
+        content.addView(navItem("Reports", "Monthly income, expense and balance", v -> showReports()));
+
+        content.addView(sectionTitle("Setup"));
+        content.addView(navItem("Categories", "Manage income and expense categories", v -> showManage()));
+        content.addView(navItem("Settings", "Export, backup and app lock coming next", v -> toast("Settings are next on the roadmap.")));
+    }
+
+    private View navItem(String title, String subtitle, View.OnClickListener listener) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(16), dp(14), dp(16), dp(14));
+        row.setBackground(round(Color.WHITE, border, 10));
+        row.setOnClickListener(listener);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.setMargins(0, 0, 0, dp(8));
+        row.setLayoutParams(p);
+        row.addView(value(title, ink, 16));
+        TextView sub = label(subtitle);
+        sub.setPadding(0, dp(4), 0, 0);
+        row.addView(sub);
+        return row;
+    }
+
+    private void showReports() {
+        content.removeAllViews();
+        content.addView(sectionTitle("Reports"));
+        Summary summary = db.getMonthSummary();
+        content.addView(metricCard("Income", summary.income, success));
+        content.addView(metricCard("Expenses", summary.expense, danger));
+        content.addView(metricCard("Balance", summary.income - summary.expense, tealDark));
+        content.addView(emptyState("Pie, trend and bar charts will build on this report screen."));
+    }
     private void showDashboard() {
         selectTab(dashboardTab);
         content.removeAllViews();
