@@ -15,7 +15,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -49,6 +48,7 @@ public class MainActivity extends Activity {
     private Button dashboardTab;
     private Button addTab;
     private Button transactionsTab;
+    private Button manageTab;
     private String selectedType = "expense";
     private final DecimalFormat money = new DecimalFormat("#,##0");
 
@@ -117,21 +117,24 @@ public class MainActivity extends Activity {
         dashboardTab = tabButton("Overview");
         addTab = tabButton("Add");
         transactionsTab = tabButton("Records");
+        manageTab = tabButton("Manage");
 
         dashboardTab.setOnClickListener(v -> showDashboard());
         addTab.setOnClickListener(v -> showAddTransaction());
         transactionsTab.setOnClickListener(v -> showTransactions());
+        manageTab.setOnClickListener(v -> showManage());
 
         tabs.addView(dashboardTab, tabParams());
         tabs.addView(addTab, tabParams());
         tabs.addView(transactionsTab, tabParams());
+        tabs.addView(manageTab, tabParams());
         return tabs;
     }
 
     private Button tabButton(String text) {
         Button b = new Button(this);
         b.setText(text);
-        b.setTextSize(13);
+        b.setTextSize(12);
         b.setAllCaps(false);
         b.setPadding(dp(6), dp(8), dp(6), dp(8));
         return b;
@@ -147,6 +150,7 @@ public class MainActivity extends Activity {
         styleTab(dashboardTab, dashboardTab == selected);
         styleTab(addTab, addTab == selected);
         styleTab(transactionsTab, transactionsTab == selected);
+        styleTab(manageTab, manageTab == selected);
     }
 
     private void styleTab(Button b, boolean active) {
@@ -277,6 +281,113 @@ public class MainActivity extends Activity {
         b.setTextSize(14);
         b.setAllCaps(false);
         return b;
+    }
+
+    private void showManage() {
+        selectTab(manageTab);
+        content.removeAllViews();
+        content.addView(sectionTitle("Manage money setup"));
+
+        LinearLayout accountCard = card();
+        accountCard.addView(value("Add account", ink, 17));
+        EditText accountName = input("Account name");
+        EditText openingBalance = input("Opening balance (optional)");
+        openingBalance.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        accountCard.addView(fieldLabel("Name"));
+        accountCard.addView(accountName);
+        accountCard.addView(fieldLabel("Opening balance"));
+        accountCard.addView(openingBalance);
+        Button saveAccount = primaryButton("Save account");
+        LinearLayout.LayoutParams saveAccountParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        saveAccountParams.setMargins(0, dp(16), 0, 0);
+        accountCard.addView(saveAccount, saveAccountParams);
+        saveAccount.setOnClickListener(v -> {
+            String name = accountName.getText().toString().trim();
+            if (name.isEmpty()) {
+                toast("Enter an account name.");
+                return;
+            }
+            double opening = parseOptionalAmount(openingBalance.getText().toString().trim());
+            if (Double.isNaN(opening)) {
+                toast("Opening balance is not valid.");
+                return;
+            }
+            if (db.addAccount(name, opening)) {
+                hideKeyboard(accountName);
+                toast("Account saved.");
+                showManage();
+            } else {
+                toast("That account already exists.");
+            }
+        });
+        content.addView(accountCard);
+
+        LinearLayout categoryCard = card();
+        categoryCard.addView(value("Add category", ink, 17));
+        Spinner typeSpinner = spinner(listOf("expense", "income"));
+        EditText categoryName = input("Category name");
+        categoryCard.addView(fieldLabel("Type"));
+        categoryCard.addView(typeSpinner);
+        categoryCard.addView(fieldLabel("Name"));
+        categoryCard.addView(categoryName);
+        Button saveCategory = primaryButton("Save category");
+        LinearLayout.LayoutParams saveCategoryParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        saveCategoryParams.setMargins(0, dp(16), 0, 0);
+        categoryCard.addView(saveCategory, saveCategoryParams);
+        saveCategory.setOnClickListener(v -> {
+            String name = categoryName.getText().toString().trim();
+            String type = String.valueOf(typeSpinner.getSelectedItem());
+            if (name.isEmpty()) {
+                toast("Enter a category name.");
+                return;
+            }
+            if (db.addCategory(name, type)) {
+                hideKeyboard(categoryName);
+                toast("Category saved.");
+                showManage();
+            } else {
+                toast("That category already exists.");
+            }
+        });
+        content.addView(categoryCard);
+
+        content.addView(sectionTitle("Current accounts"));
+        for (Account account : db.getAccounts()) content.addView(accountCard(account));
+
+        content.addView(sectionTitle("Expense categories"));
+        content.addView(categoryList(db.getCategoryNames("expense")));
+        content.addView(sectionTitle("Income categories"));
+        content.addView(categoryList(db.getCategoryNames("income")));
+    }
+
+    private View categoryList(List<String> categories) {
+        LinearLayout card = card();
+        if (categories.isEmpty()) {
+            card.addView(label("No categories yet."));
+            return card;
+        }
+        for (String category : categories) {
+            TextView item = value(category, ink, 15);
+            item.setPadding(0, dp(4), 0, dp(4));
+            card.addView(item);
+        }
+        return card;
+    }
+
+    private List<String> listOf(String first, String second) {
+        List<String> items = new ArrayList<>();
+        items.add(first);
+        items.add(second);
+        return items;
+    }
+
+    private double parseOptionalAmount(String text) {
+        if (text.isEmpty()) return 0;
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException ex) {
+            return Double.NaN;
+        }
     }
 
     private void showTransactions() {
@@ -494,6 +605,31 @@ public class MainActivity extends Activity {
             db.insert("accounts", null, v);
         }
 
+        boolean addAccount(String name, double opening) {
+            SQLiteDatabase db = getWritableDatabase();
+            if (accountExists(db, name)) return false;
+            insertAccount(db, name, opening);
+            return true;
+        }
+
+        boolean addCategory(String name, String type) {
+            SQLiteDatabase db = getWritableDatabase();
+            if (categoryExists(db, name, type)) return false;
+            insertCategory(db, name, type);
+            return true;
+        }
+
+        private boolean accountExists(SQLiteDatabase db, String name) {
+            Cursor c = db.rawQuery("SELECT 1 FROM accounts WHERE lower(name)=lower(?) LIMIT 1", new String[]{name});
+            try { return c.moveToFirst(); }
+            finally { c.close(); }
+        }
+
+        private boolean categoryExists(SQLiteDatabase db, String name, String type) {
+            Cursor c = db.rawQuery("SELECT 1 FROM categories WHERE lower(name)=lower(?) AND type=? LIMIT 1", new String[]{name, type});
+            try { return c.moveToFirst(); }
+            finally { c.close(); }
+        }
         private void insertCategory(SQLiteDatabase db, String name, String type) {
             ContentValues v = new ContentValues();
             v.put("name", name);
