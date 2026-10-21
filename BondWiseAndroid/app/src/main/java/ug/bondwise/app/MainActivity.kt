@@ -20,8 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
@@ -67,7 +69,7 @@ data class Bond(
     val netCurrentYield: Double get() = if (cleanPrice > 0) annualNetCoupon / cleanPrice * 100.0 else 0.0
 }
 
-private fun Bond.toForm() = BondForm(id = id, name = name, face = faceValue.toString(), coupon = couponRate.toString(), price = cleanPrice.toString(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate)
+private fun Bond.toForm() = BondForm(id = id, name = name, face = faceValue.grouped(), coupon = couponRate.toString(), price = cleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate)
 
 data class Cashflow(
     val date: LocalDate,
@@ -89,9 +91,9 @@ data class BondForm(
     val maturityDate: LocalDate = LocalDate.now().plusYears(5)
 ) {
     fun toBond(): Bond? {
-        val faceValue = face.toDoubleOrNull() ?: return null
+        val faceValue = face.toAmountOrNull() ?: return null
         val couponRate = coupon.toDoubleOrNull() ?: return null
-        val cleanPrice = price.toDoubleOrNull() ?: return null
+        val cleanPrice = price.toAmountOrNull() ?: return null
         val taxRate = tax.toDoubleOrNull() ?: return null
         if (name.isBlank() || faceValue <= 0 || couponRate < 0 || cleanPrice <= 0 || taxRate !in 0.0..100.0) return null
         if (frequency !in listOf(1, 2) || nextCouponDate.isBefore(LocalDate.now()) || !nextCouponDate.isBefore(maturityDate)) return null
@@ -267,9 +269,9 @@ fun BondWiseApp() {
 @Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit) {
     CardBox {
         TextFieldBlock("Bond name", form.name, { onChange(form.copy(name = it)) }, KeyboardType.Text)
-        TextFieldBlock("Face value (UGX)", form.face, { onChange(form.copy(face = it)) }, KeyboardType.Decimal)
+        TextFieldBlock("Face value (UGX)", form.face, { onChange(form.copy(face = it)) }, KeyboardType.Decimal, groupThousands = true)
         TextFieldBlock("Annual coupon rate (%)", form.coupon, { onChange(form.copy(coupon = it)) }, KeyboardType.Decimal)
-        TextFieldBlock("Purchase price, excluding accrued interest (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.Decimal)
+        TextFieldBlock("Purchase price, excluding accrued interest (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.Decimal, groupThousands = true)
         Text("Coupon frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             listOf(2 to "Semi-annual", 1 to "Annual").forEach { (n, label) ->
@@ -323,12 +325,41 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun TextFieldBlock(label: String, value: String, onValue: (String) -> Unit, keyboard: KeyboardType, supporting: String? = null) {
-    OutlinedTextField(
-        value = value, onValueChange = onValue, label = { Text(label, fontSize = 12.sp) }, singleLine = true,
-        supportingText = supporting?.let { { Text(it, fontSize = 10.sp) } },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard), modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp)
-    )
+@Composable private fun TextFieldBlock(label: String, value: String, onValue: (String) -> Unit, keyboard: KeyboardType, supporting: String? = null, groupThousands: Boolean = false) {
+    val labelContent: @Composable () -> Unit = { Text(label, fontSize = 12.sp) }
+    val supportingContent: (@Composable () -> Unit)? = supporting?.let { { Text(it, fontSize = 10.sp) } }
+    if (groupThousands) {
+        var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+        LaunchedEffect(value) {
+            if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
+        }
+        OutlinedTextField(
+            value = field,
+            onValueChange = { entered ->
+                val formatted = entered.text.replace(",", "").groupedInput()
+                val digitsBeforeCursor = entered.text.take(entered.selection.start).count { it.isDigit() }
+                var cursor = 0
+                var digits = 0
+                while (cursor < formatted.length && digits < digitsBeforeCursor) {
+                    if (formatted[cursor].isDigit()) digits++
+                    cursor++
+                }
+                field = TextFieldValue(formatted, TextRange(cursor.coerceAtMost(formatted.length)))
+                onValue(formatted)
+            },
+            label = labelContent,
+            singleLine = true,
+            supportingText = supportingContent,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp)
+        )
+    } else {
+        OutlinedTextField(
+            value = value, onValueChange = onValue, label = labelContent, singleLine = true,
+            supportingText = supportingContent,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboard), modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp)
+        )
+    }
 }
 
 @Composable private fun BondCard(bond: Bond, isTop: Boolean = false, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?) {
@@ -486,7 +517,20 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
 private fun money(value: Double) = "UGX " + String.format(Locale.US, "%,.0f", value)
-private fun moneyShort(value: Double) = "UGX " + String.format(Locale.US, "%.1fM", value / 1_000_000.0)
+private fun moneyShort(value: Double) = money(value)
+
+private fun String.toAmountOrNull(): Double? = replace(",", "").trim().toDoubleOrNull()
+
+private fun Double.grouped(): String = toString().groupedInput()
+
+private fun String.groupedInput(): String {
+    val cleaned = filter { it.isDigit() || it == '.' }
+    val decimalAt = cleaned.indexOf('.')
+    val integer = if (decimalAt >= 0) cleaned.substring(0, decimalAt) else cleaned
+    val fraction = if (decimalAt >= 0) cleaned.substring(decimalAt + 1).replace(".", "") else null
+    val groupedInteger = integer.reversed().chunked(3).joinToString(",").reversed()
+    return if (fraction != null) "$groupedInteger.$fraction" else groupedInteger
+}
 
 
 
