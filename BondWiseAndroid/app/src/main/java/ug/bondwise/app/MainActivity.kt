@@ -63,6 +63,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+data class PurchaseLot(
+    val id: String = UUID.randomUUID().toString(),
+    val purchaseDate: LocalDate,
+    val faceValue: Double,
+    val cleanPrice: Double,
+    val accruedInterest: Double = 0.0,
+    val fees: Double = 0.0
+)
+
 data class Bond(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -72,15 +81,23 @@ data class Bond(
     val maturityDate: LocalDate,
     val nextCouponDate: LocalDate,
     val frequency: Int,
-    val taxRate: Double
+    val taxRate: Double,
+    val lots: List<PurchaseLot> = emptyList()
 ) {
-    val annualGrossCoupon: Double get() = faceValue * couponRate / 100.0
+    val purchaseLots: List<PurchaseLot> get() = lots.ifEmpty { listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice)) }
+    val totalFaceValue: Double get() = purchaseLots.sumOf { it.faceValue }
+    val totalCleanPrice: Double get() = purchaseLots.sumOf { it.cleanPrice }
+    val totalCashOutlay: Double get() = purchaseLots.sumOf { it.cleanPrice + it.accruedInterest + it.fees }
+    val annualGrossCoupon: Double get() = totalFaceValue * couponRate / 100.0
     val annualNetCoupon: Double get() = annualGrossCoupon * (1.0 - taxRate / 100.0)
-    val grossCurrentYield: Double get() = if (cleanPrice > 0) annualGrossCoupon / cleanPrice * 100.0 else 0.0
-    val netCurrentYield: Double get() = if (cleanPrice > 0) annualNetCoupon / cleanPrice * 100.0 else 0.0
+    val grossCurrentYield: Double get() = if (totalCleanPrice > 0) annualGrossCoupon / totalCleanPrice * 100.0 else 0.0
+    val netCurrentYield: Double get() = if (totalCleanPrice > 0) annualNetCoupon / totalCleanPrice * 100.0 else 0.0
 }
 
-private fun Bond.toForm() = BondForm(id = id, name = name, face = faceValue.grouped(), coupon = couponRate.toString(), price = cleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate)
+private fun Bond.toForm(): BondForm {
+    val firstLot = purchaseLots.first()
+    return BondForm(id = id, name = name, face = totalFaceValue.grouped(), coupon = couponRate.toString(), price = totalCleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate, purchaseDate = firstLot.purchaseDate, accruedInterest = firstLot.accruedInterest.grouped(), fees = firstLot.fees.grouped())
+}
 
 data class Cashflow(
     val date: LocalDate,
@@ -101,19 +118,43 @@ data class BondForm(
     val tax: String = "10",
     val frequency: Int = 2,
     val nextCouponDate: LocalDate = LocalDate.now().plusMonths(6),
-    val maturityDate: LocalDate = LocalDate.now().plusYears(5)
+    val maturityDate: LocalDate = LocalDate.now().plusYears(5),
+    val purchaseDate: LocalDate = LocalDate.now(),
+    val accruedInterest: String = "0",
+    val fees: String = "0"
 ) {
     fun toBond(): Bond? {
         val faceValue = face.toAmountOrNull() ?: return null
         val couponRate = coupon.toDoubleOrNull() ?: return null
         val cleanPrice = price.toAmountOrNull() ?: return null
+        val accrued = accruedInterest.toAmountOrNull() ?: return null
+        val feeAmount = fees.toAmountOrNull() ?: return null
         val taxRate = tax.toDoubleOrNull() ?: return null
-        if (name.isBlank() || faceValue <= 0 || couponRate < 0 || cleanPrice <= 0 || taxRate !in 0.0..100.0) return null
+        if (name.isBlank() || faceValue <= 0 || couponRate < 0 || cleanPrice <= 0 || accrued < 0 || feeAmount < 0 || taxRate !in 0.0..100.0) return null
         if (frequency !in listOf(1, 2) || nextCouponDate.isBefore(LocalDate.now()) || !nextCouponDate.isBefore(maturityDate)) return null
+        if (purchaseDate.isAfter(LocalDate.now()) || !purchaseDate.isBefore(maturityDate)) return null
+        val lot = PurchaseLot(purchaseDate = purchaseDate, faceValue = faceValue, cleanPrice = cleanPrice, accruedInterest = accrued, fees = feeAmount)
         return Bond(
             id = id ?: UUID.randomUUID().toString(), name = name.trim(), faceValue = faceValue, couponRate = couponRate, cleanPrice = cleanPrice,
-            maturityDate = maturityDate, nextCouponDate = nextCouponDate, frequency = frequency, taxRate = taxRate
+            maturityDate = maturityDate, nextCouponDate = nextCouponDate, frequency = frequency, taxRate = taxRate, lots = listOf(lot)
         )
+    }
+}
+
+data class PurchaseLotForm(
+    val purchaseDate: LocalDate = LocalDate.now(),
+    val faceValue: String = "",
+    val cleanPrice: String = "",
+    val accruedInterest: String = "0",
+    val fees: String = "0"
+) {
+    fun toLot(maturityDate: LocalDate): PurchaseLot? {
+        val face = faceValue.toAmountOrNull() ?: return null
+        val price = cleanPrice.toAmountOrNull() ?: return null
+        val accrued = accruedInterest.toAmountOrNull() ?: return null
+        val feeAmount = fees.toAmountOrNull() ?: return null
+        if (face <= 0 || price <= 0 || accrued < 0 || feeAmount < 0 || purchaseDate.isAfter(LocalDate.now()) || !purchaseDate.isBefore(maturityDate)) return null
+        return PurchaseLot(purchaseDate = purchaseDate, faceValue = face, cleanPrice = price, accruedInterest = accrued, fees = feeAmount)
     }
 }
 
@@ -125,11 +166,13 @@ fun BondWiseApp() {
     var page by remember { mutableStateOf("Overview") }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
     val scope = rememberCoroutineScope()
-    var rank by remember { mutableStateOf("Estimated Net YTM") }
+    var rank by remember { mutableStateOf("Estimated Net Return") }
     var showAdd by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
+    var lotsBond by remember { mutableStateOf<Bond?>(null) }
+    var purchaseBond by remember { mutableStateOf<Bond?>(null) }
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { settledPage ->
@@ -138,9 +181,19 @@ fun BondWiseApp() {
     }
 
     fun save() = persistBonds(context, bonds)
+    LaunchedEffect(Unit) { save() }
     fun addBond(bond: Bond) { bonds.add(bond); save() }
     fun removeBond(bond: Bond) { bonds.removeAll { it.id == bond.id }; save() }
-    fun updateBond(bond: Bond) { val index = bonds.indexOfFirst { it.id == bond.id }; if (index >= 0) { bonds[index] = bond; save() } }
+    fun updateBond(bond: Bond) { val index = bonds.indexOfFirst { it.id == bond.id }; if (index >= 0) { bonds[index] = bond; save(); if (lotsBond?.id == bond.id) lotsBond = bond } }
+    fun addPurchase(bondId: String, lot: PurchaseLot) {
+        val bond = bonds.firstOrNull { it.id == bondId } ?: return
+        updateBond(bond.copy(lots = bond.purchaseLots + lot, faceValue = bond.totalFaceValue + lot.faceValue, cleanPrice = bond.totalCleanPrice + lot.cleanPrice))
+    }
+    fun removePurchase(bondId: String, lotId: String) {
+        val bond = bonds.firstOrNull { it.id == bondId } ?: return
+        val remaining = bond.purchaseLots.filterNot { it.id == lotId }
+        if (remaining.isNotEmpty()) updateBond(bond.copy(lots = remaining, faceValue = remaining.sumOf { it.faceValue }, cleanPrice = remaining.sumOf { it.cleanPrice }))
+    }
 
     MaterialTheme(colorScheme = lightColorScheme(primary = Teal, secondary = Navy, background = Canvas, surface = Color.White, onSurface = Ink)) {
         Scaffold(
@@ -165,18 +218,20 @@ fun BondWiseApp() {
                 Header(onHelp = { showHelp = true })
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
-                        "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.scrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it })
-                        "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond)
+                        "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.scrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
+                        "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond, { lotsBond = it }, { purchaseBond = it })
                         "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
-                        else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, ::removeBond, { showAdd = true })
+                        else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, ::removeBond, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
                     }
                 }
             }
         }
         if (showAdd) AddBondDialog(onDismiss = { showAdd = false }, onAdd = { addBond(it); showAdd = false })
-        editingBond?.let { bond -> EditBondDialog(bond, onDismiss = { editingBond = null }, onSave = { updateBond(it); editingBond = null }) }
+        editingBond?.let { bond -> EditBondDialog(bond, onDismiss = { editingBond = null }, onSave = { updated -> updateBond(updated.copy(lots = bond.purchaseLots, faceValue = bond.totalFaceValue, cleanPrice = bond.totalCleanPrice)); editingBond = null }) }
         scheduledBond?.let { ScheduleDialog(it, onDismiss = { scheduledBond = null }) }
         if (showHelp) HelpDialog(onDismiss = { showHelp = false })
+        lotsBond?.let { bond -> PurchaseLotsDialog(bond, onDismiss = { lotsBond = null }, onAdd = { lotsBond = null; purchaseBond = bond }, onRemove = { lot -> removePurchase(bond.id, lot.id) }) }
+        purchaseBond?.let { bond -> AddPurchaseDialog(bond, onDismiss = { purchaseBond = null }, onAdd = { lot -> addPurchase(bond.id, lot); purchaseBond = null }) }
     }
 }
 
@@ -195,7 +250,7 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun Overview(bonds: List<Bond>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit) {
+@Composable private fun Overview(bonds: List<Bond>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionTitle("Your watchlist", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
         if (bonds.isEmpty()) {
@@ -209,12 +264,12 @@ fun BondWiseApp() {
                 }
             }
         } else {
-            val best = bonds.maxByOrNull { estimatedYtm(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
-            item { CardBox { Text("Estimated Net YTM", color = Muted, fontSize = 12.sp); Text(best?.let { "${estimatedYtm(it, true)?.fmt() ?: "—"}%" } ?: "—", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold); Text(best?.name ?: "No bond selected", color = Muted, fontSize = 12.sp); Spacer(Modifier.height(5.dp)); Text("Calculated from the dates and tax rate you entered. Not a live market quote.", color = Muted, fontSize = 11.sp) } }
+            val best = bonds.maxByOrNull { estimatedReturn(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
+            item { CardBox { Text(best?.let { netReturnLabel(it) } ?: "Estimated Net YTM", color = Muted, fontSize = 12.sp); Text(best?.let { "${estimatedReturn(it, true)?.fmt() ?: "—"}%" } ?: "—", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold); Text(best?.name ?: "No bond selected", color = Muted, fontSize = 12.sp); Spacer(Modifier.height(5.dp)); Text("Calculated from the purchase dates, coupon schedule, entered tax rate and maturity. Not a live market quote.", color = Muted, fontSize = 11.sp) } }
             item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Saved bonds", if (bonds.size == 1) "1 Bond Saved" else "${bonds.size} Bonds Saved", Modifier.weight(1f)); MetricCard("Annual net coupons", money(bonds.sumOf { it.annualNetCoupon }), Modifier.weight(1f)) } }
-            item { SectionTitle("Estimated Net YTM", "YOUR DATA") }
-            items(bonds.sortedByDescending { estimatedYtm(it, true) ?: Double.NEGATIVE_INFINITY }.take(3)) { bond ->
-                BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null)
+            item { SectionTitle("Estimated Net Return", "YOUR DATA") }
+            items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3)) { bond ->
+                BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
             item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare all bonds  →") } }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add another bond") } }
@@ -224,7 +279,8 @@ fun BondWiseApp() {
 
 @Composable private fun Compare(
     bonds: List<Bond>, rank: String, onRank: (String) -> Unit, onAdd: () -> Unit,
-    onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit
+    onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit,
+    onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit
 ) {
     var compareMode by remember { mutableStateOf("Saved") }
     var firstForm by remember { mutableStateOf(BondForm(name = "Bond A")) }
@@ -236,7 +292,7 @@ fun BondWiseApp() {
     val sorted = when (rank) {
         "Coupon income" -> bonds.sortedByDescending { it.annualNetCoupon }
         "Maturity" -> bonds.sortedBy { it.maturityDate }
-        else -> bonds.sortedByDescending { estimatedYtm(it, true) ?: Double.NEGATIVE_INFINITY }
+        else -> bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }
     }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -252,7 +308,7 @@ fun BondWiseApp() {
                 Text("Sort by", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(5.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("Estimated Net YTM", "Coupon income", "Maturity").forEach { FilterChip(selected = rank == it, onClick = { onRank(it) }, label = { Text(it, fontSize = 9.sp) }) }
+                    listOf("Estimated Net Return", "Coupon income", "Maturity").forEach { FilterChip(selected = rank == it, onClick = { onRank(it) }, label = { Text(it, fontSize = 9.sp) }) }
                 }
                 Text("Sorting highlights one measure; it does not decide which bond suits you.", fontSize = 11.sp, color = Muted)
             }
@@ -260,7 +316,7 @@ fun BondWiseApp() {
         if (sorted.isEmpty()) {
             item { CardBox { Text("No bonds saved yet", fontWeight = FontWeight.Bold); Text("Add a bond to see its estimated yield and coupon schedule here.", color = Muted, fontSize = 12.sp); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(sorted) { bond -> BondCard(bond, isTop = bond == sorted.firstOrNull(), onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }) }
+            items(sorted) { bond -> BondCard(bond, isTop = bond == sorted.firstOrNull(), onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add a bond") } }
         }
     }
@@ -292,25 +348,25 @@ fun BondWiseApp() {
                     Spacer(Modifier.height(8.dp))
                     CompareResultHeader(firstBond.name, secondBond.name)
                     CompareResultRow("Coupon rate", "${firstBond.couponRate.fmt()}%", "${secondBond.couponRate.fmt()}%")
-                    CompareResultRow("Face Value", money(firstBond.faceValue), money(secondBond.faceValue))
-                    CompareResultRow("Purchase Price", money(firstBond.cleanPrice), money(secondBond.cleanPrice))
+                    CompareResultRow("Face Value", money(firstBond.totalFaceValue), money(secondBond.totalFaceValue))
+                    CompareResultRow("Purchase Price", money(firstBond.totalCleanPrice), money(secondBond.totalCleanPrice))
                     ComparePricePositionRow(firstBond, secondBond)
-                    CompareResultRow("Estimated Net YTM", "${estimatedYtm(firstBond, true)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, true)?.fmt() ?: "—"}%")
-                    CompareResultRow("Estimated Gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
+                    CompareResultRow(if (firstBond.purchaseLots.size > 1 || secondBond.purchaseLots.size > 1) "Estimated Net Return" else "Estimated Net YTM", "${estimatedReturn(firstBond, true)?.fmt() ?: "—"}%", "${estimatedReturn(secondBond, true)?.fmt() ?: "—"}%")
+                    CompareResultRow(if (firstBond.purchaseLots.size > 1 || secondBond.purchaseLots.size > 1) "Estimated Gross Return" else "Estimated Gross YTM", "${estimatedReturn(firstBond, false)?.fmt() ?: "—"}%", "${estimatedReturn(secondBond, false)?.fmt() ?: "—"}%")
                     CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
                     CompareResultRow("Net current yield", "${firstBond.netCurrentYield.fmt()}%", "${secondBond.netCurrentYield.fmt()}%")
                     CompareResultRow("Maturity", firstBond.maturityDate.format(DisplayDateFormat), secondBond.maturityDate.format(DisplayDateFormat))
                     Spacer(Modifier.height(8.dp))
-                    val aYtm = estimatedYtm(firstBond, true)
-                    val bYtm = estimatedYtm(secondBond, true)
+                    val aReturn = estimatedReturn(firstBond, true)
+                    val bReturn = estimatedReturn(secondBond, true)
                     val lead = when {
-                        aYtm == null || bYtm == null -> "YTM cannot be estimated for one or both entries with these inputs."
-                        aYtm > bYtm -> "${firstBond.name} has the higher estimated net YTM."
-                        bYtm > aYtm -> "${secondBond.name} has the higher estimated net YTM."
-                        else -> "Both have the same estimated net YTM."
+                        aReturn == null || bReturn == null -> "Return cannot be estimated for one or both entries with these inputs."
+                        aReturn > bReturn -> "${firstBond.name} has the higher estimated net return."
+                        bReturn > aReturn -> "${secondBond.name} has the higher estimated net return."
+                        else -> "Both have the same estimated net return."
                     }
                     Text(lead, color = Teal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text("This compares entered figures only. It does not include fees, accrued interest, or market convention adjustments.", color = Muted, fontSize = 10.sp)
+                    Text("This comparison uses the entered costs and accrued interest. It does not apply market-specific day-count, settlement or coupon-entitlement conventions.", color = Muted, fontSize = 10.sp)
                 }
             }
         } else {
@@ -377,11 +433,11 @@ fun BondWiseApp() {
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Estimated Gross YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
-                        MetricCard("Estimated Net YTM", "${estimatedYtm(bond, true)?.fmt() ?: "—"}%", Modifier.weight(1f))
+                        MetricCard(if (bond.purchaseLots.size > 1) "Estimated Gross Return" else "Estimated Gross YTM", "${estimatedReturn(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
+                        MetricCard(netReturnLabel(bond), "${estimatedReturn(bond, true)?.fmt() ?: "—"}%", Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Dated cash-flow estimate. Purchase Price is entered without accrued interest.", fontSize = 11.sp, color = Muted)
+                    Text("Dated cash-flow estimate. Accrued interest and fees are recorded separately and included in the purchase outflow.", fontSize = 11.sp, color = Muted)
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = { onSchedule(bond) }, modifier = Modifier.fillMaxWidth()) { Text("Preview coupon schedule") }
                     Button(onClick = { onSave(bond) }, modifier = Modifier.fillMaxWidth()) { Text("Save to My bonds") }
@@ -391,25 +447,32 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun Portfolio(bonds: List<Bond>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit) {
+@Composable private fun Portfolio(bonds: List<Bond>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("My bonds", "SAVED ON DEVICE") }
         item { CardBox { Text(if (bonds.size == 1) "1 Bond Saved" else "${bonds.size} Bonds Saved", fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your entries stay on this device.", color = Muted, fontSize = 12.sp); Text("Total annual coupon after tax: ${money(bonds.sumOf { it.annualNetCoupon })}", color = Muted, fontSize = 12.sp) } }
         if (bonds.isEmpty()) {
             item { CardBox { Text("Your bond list is empty", fontWeight = FontWeight.Bold); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(bonds) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }) }
+            items(bonds) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+ Add a bond") } }
         }
     }
 }
 
-@Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit) {
+@Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit, includePurchaseDetails: Boolean = true) {
     CardBox {
         TextFieldBlock("Bond name", form.name, { onChange(form.copy(name = it)) }, KeyboardType.Text)
-        TextFieldBlock("Face Value", form.face, { onChange(form.copy(face = it)) }, KeyboardType.NumberPassword, groupThousands = true)
+        if (includePurchaseDetails) TextFieldBlock("Face Value", form.face, { onChange(form.copy(face = it)) }, KeyboardType.NumberPassword, groupThousands = true)
         TextFieldBlock("Annual coupon rate (%)", form.coupon, { onChange(form.copy(coupon = it)) }, KeyboardType.Decimal)
-        TextFieldBlock("Purchase Price", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, groupThousands = true)
+        if (includePurchaseDetails) {
+            TextFieldBlock("Clean Purchase Price", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, supporting = "Excludes accrued interest and fees.", groupThousands = true)
+            DateField("Purchase date", form.purchaseDate) { onChange(form.copy(purchaseDate = it)) }
+            TextFieldBlock("Accrued interest paid (UGX)", form.accruedInterest, { onChange(form.copy(accruedInterest = it)) }, KeyboardType.NumberPassword, groupThousands = true)
+            TextFieldBlock("Fees (UGX)", form.fees, { onChange(form.copy(fees = it)) }, KeyboardType.NumberPassword, groupThousands = true)
+        } else {
+            Text("Purchase lots are unchanged here. Use Purchases to add or remove a tranche.", color = Muted, fontSize = 11.sp)
+        }
         Text("Coupon frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             listOf(2 to "Semi-annual", 1 to "Annual").forEach { (n, label) ->
@@ -427,9 +490,10 @@ fun BondWiseApp() {
     var error by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add bond") },
+        title = { Text("Add bond and first purchase") },
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Enter the bond terms and its first purchase lot. You can add later purchases from My bonds.", color = Muted, fontSize = 11.sp)
                 BondFields(form, { form = it })
                 if (error) Text("Check the required values and dates. Next coupon must be today or later and before maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
             }
@@ -439,12 +503,70 @@ fun BondWiseApp() {
     )
 }
 
+@Composable private fun AddPurchaseDialog(bond: Bond, onDismiss: () -> Unit, onAdd: (PurchaseLot) -> Unit) {
+    var form by remember(bond.id) { mutableStateOf(PurchaseLotForm()) }
+    var error by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add purchase lot") },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(bond.name, color = Teal, fontWeight = FontWeight.Bold)
+                DateField("Purchase date", form.purchaseDate) { form = form.copy(purchaseDate = it) }
+                TextFieldBlock("Face value acquired (UGX)", form.faceValue, { form = form.copy(faceValue = it) }, KeyboardType.NumberPassword, groupThousands = true)
+                TextFieldBlock("Clean purchase price (UGX)", form.cleanPrice, { form = form.copy(cleanPrice = it) }, KeyboardType.NumberPassword, supporting = "Enter the total price before accrued interest and fees.", groupThousands = true)
+                TextFieldBlock("Accrued interest paid (UGX)", form.accruedInterest, { form = form.copy(accruedInterest = it) }, KeyboardType.NumberPassword, groupThousands = true)
+                TextFieldBlock("Fees (UGX)", form.fees, { form = form.copy(fees = it) }, KeyboardType.NumberPassword, groupThousands = true)
+                if (error) Text("Enter positive face value and purchase price, non-negative accrued interest and fees, and a purchase date that is not in the future or after maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = { val lot = form.toLot(bond.maturityDate); if (lot == null) error = true else onAdd(lot) }) { Text("Save purchase") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable private fun PurchaseLotsDialog(bond: Bond, onDismiss: () -> Unit, onAdd: () -> Unit, onRemove: (PurchaseLot) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Purchase lots") },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(bond.name, color = Teal, fontWeight = FontWeight.Bold)
+                Text("Combined face value: ${money(bond.totalFaceValue)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text("Combined clean purchase price: ${money(bond.totalCleanPrice)}", fontSize = 11.sp)
+                Text("Accrued interest and fees: ${money(bond.purchaseLots.sumOf { it.accruedInterest + it.fees })}", fontSize = 11.sp)
+                Text("Total invested: ${money(bond.totalCashOutlay)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                bond.purchaseLots.sortedBy { it.purchaseDate }.forEachIndexed { index, lot ->
+                    CardBox {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Lot ${index + 1} · ${lot.purchaseDate.format(DisplayDateFormat)}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Face value: ${money(lot.faceValue)}", fontSize = 11.sp)
+                                Text("Clean purchase price: ${money(lot.cleanPrice)}", fontSize = 11.sp)
+                                Text("Accrued interest: ${money(lot.accruedInterest)} · Fees: ${money(lot.fees)}", fontSize = 10.sp, color = Muted)
+                                val difference = lot.cleanPrice - lot.faceValue
+                                val label = when { kotlin.math.abs(difference) < 0.005 -> "At face value"; difference > 0 -> "Premium ${money(difference)}"; else -> "Discount ${money(-difference)}" }
+                                val color = when { kotlin.math.abs(difference) < 0.005 -> Muted; difference > 0 -> PremiumRed; else -> DiscountGreen }
+                                Text(label, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
+                            }
+                            if (bond.purchaseLots.size > 1) TextButton(onClick = { onRemove(lot) }) { Text("Remove", color = Color(0xFF9A3D42), fontSize = 11.sp) }
+                        }
+                    }
+                }
+                Text("The app treats purchases made on a coupon date as eligible for that date’s payment. Confirm entitlement and settlement details against your trade confirmation.", color = Muted, fontSize = 10.sp)
+                OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+ Add another purchase") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
+}
+
 @Composable private fun EditBondDialog(bond: Bond, onDismiss: () -> Unit, onSave: (Bond) -> Unit) {
     var form by remember(bond.id) { mutableStateOf(bond.toForm()) }
     var error by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit bond") }, text = {
         Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            BondFields(form, { form = it })
+            BondFields(form, { form = it }, includePurchaseDetails = bond.purchaseLots.size == 1)
             if (error) Text("Check the values and dates.", color = Color(0xFF9A5B00), fontSize = 12.sp)
         }
     }, confirmButton = { TextButton(onClick = { val updated = form.toBond(); if (updated == null) error = true else onSave(updated) }) { Text("Save changes") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
@@ -503,7 +625,7 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun BondCard(bond: Bond, isTop: Boolean = false, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?) {
+@Composable private fun BondCard(bond: Bond, isTop: Boolean = false, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?, onLots: (() -> Unit)? = null, onAddPurchase: (() -> Unit)? = null) {
     val position = premiumDiscount(bond)
     CardBox {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
@@ -514,22 +636,28 @@ fun BondWiseApp() {
                 Text("Next coupon ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("${estimatedYtm(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Estimated Net YTM", fontSize = 10.sp, color = Muted)
+                Text("${estimatedReturn(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                Text(netReturnLabel(bond), fontSize = 10.sp, color = Muted)
             }
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricCard("Purchase Price", money(bond.cleanPrice), Modifier.weight(1f))
-            MetricCard("Face Value", money(bond.faceValue), Modifier.weight(1f))
+            MetricCard("Purchase Price", money(bond.totalCleanPrice), Modifier.weight(1f))
+            MetricCard("Face Value", money(bond.totalFaceValue), Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
             MetricCard("Net annual coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
             MetricCard(position.label, position.detail, Modifier.weight(1f), position.color, position.color)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
-            MetricCard("Estimated Gross YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
+            MetricCard(if (bond.purchaseLots.size > 1) "Estimated Gross Return" else "Estimated Gross YTM", "${estimatedReturn(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
             MetricCard("Tax on coupons", "${bond.taxRate.fmt()}%", Modifier.weight(1f))
+        }
+        if (onLots != null || onAddPurchase != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                if (onLots != null) TextButton(onClick = onLots, modifier = Modifier.weight(1f)) { Text("Purchases (${bond.purchaseLots.size})") }
+                if (onAddPurchase != null) OutlinedButton(onClick = onAddPurchase, modifier = Modifier.weight(1f)) { Text("+ Add purchase") }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             TextButton(onClick = onSchedule, modifier = Modifier.weight(1f)) { Text("Schedule") }
@@ -575,10 +703,11 @@ fun BondWiseApp() {
         text = {
             Column(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 HelpSection("Tax", "The 10% tax value is an editable default, not a universal rate. Confirm the rate that applies to your bond and circumstances. BondWise applies the entered rate to coupon interest only, not principal repayment.")
-                HelpSection("Estimated Net YTM", "This is an annualized estimate based on the entered Purchase Price, coupon dates, maturity, and tax rate. It assumes the bond is held to maturity and payments are made as scheduled. It is not a live market quote or guaranteed return.")
-                HelpSection("Purchase Price", "Enter the bond price before accrued interest. The current estimate does not include accrued interest, transaction fees, or market-specific day-count conventions.")
+                HelpSection("Estimated return", "For one purchase lot, the estimate is based on that lot’s purchase price, dates, maturity and coupon tax rate. For multiple lots, BondWise calculates an annualized return (XIRR) using each dated purchase outflow, projected coupon payments, fees and principal at maturity. It includes coupons from each lot’s purchase date, but it is not a live market valuation or guaranteed return.")
+                HelpSection("Multiple purchases", "Use one saved bond for all purchases of the same bond. Add each purchase with its own date, face value, clean price, accrued interest and fees. The bond card totals the lots, while Purchases shows each lot and its premium or discount.")
+                HelpSection("Purchase price", "Enter each lot’s clean purchase price before accrued interest. Enter accrued interest and fees in their separate fields; they are included in the dated investment outflow. The app does not apply market-specific day-count or settlement conventions.")
                 HelpSection("Premium or discount", "BondWise compares Purchase Price with Face Value. A price above face value is shown as a red premium; a price below face value is shown as a green discount.")
-                HelpSection("Compare bonds", "A higher estimated net YTM means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
+                HelpSection("Compare bonds", "A higher estimated net return means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
@@ -611,41 +740,55 @@ fun BondWiseApp() {
     }
 }
 
-private fun couponSchedule(bond: Bond): List<Cashflow> {
+private fun couponSchedule(bond: Bond, fromDate: LocalDate = LocalDate.now()): List<Cashflow> {
     val periodMonths = 12 / bond.frequency
     val result = mutableListOf<Cashflow>()
-    val first = bond.nextCouponDate
-    val anchorDay = first.dayOfMonth
-    var index = 0
-    var date = first
-    while (!date.isAfter(bond.maturityDate) && index < 1000) {
-        val gross = bond.annualGrossCoupon / bond.frequency
+    val anchor = bond.nextCouponDate
+    val anchorDay = anchor.dayOfMonth
+    fun dateAt(index: Long): LocalDate {
+        val month = YearMonth.from(anchor).plusMonths(periodMonths.toLong() * index)
+        return month.atDay(anchorDay.coerceAtMost(month.lengthOfMonth()))
+    }
+    var index = 0L
+    while (dateAt(index).isBefore(fromDate) && index < 1000L) index++
+    while (index > -1000L && !dateAt(index - 1).isBefore(fromDate)) index--
+    var date = dateAt(index)
+    while (!date.isAfter(bond.maturityDate) && index < 1000L) {
+        val eligibleFace = bond.purchaseLots.filter { !it.purchaseDate.isAfter(date) }.sumOf { it.faceValue }
+        val gross = eligibleFace * bond.couponRate / 100.0 / bond.frequency
         val tax = gross * bond.taxRate / 100.0
-        result.add(Cashflow(date, gross, tax, gross - tax, if (date == bond.maturityDate) bond.faceValue else 0.0))
+        result.add(Cashflow(date, gross, tax, gross - tax, if (date == bond.maturityDate) bond.totalFaceValue else 0.0))
         index++
-        val month = YearMonth.from(first).plusMonths((periodMonths.toLong() * index))
-        date = month.atDay(anchorDay.coerceAtMost(month.lengthOfMonth()))
+        date = dateAt(index)
     }
     if (result.none { it.date == bond.maturityDate }) {
-        result.add(Cashflow(bond.maturityDate, 0.0, 0.0, 0.0, bond.faceValue))
+        result.add(Cashflow(bond.maturityDate, 0.0, 0.0, 0.0, bond.totalFaceValue))
     }
     return result.sortedBy { it.date }
 }
 
-private fun estimatedYtm(bond: Bond, afterTax: Boolean): Double? {
-    val today = LocalDate.now()
-    val flows = couponSchedule(bond).filter { !it.date.isBefore(today) }
-    if (flows.isEmpty() || bond.cleanPrice <= 0) return null
-    fun presentValue(rate: Double): Double = flows.sumOf { flow ->
-        val cash = (if (afterTax) flow.netCoupon else flow.grossCoupon) + flow.principal
-        cash / (1.0 + rate).pow(java.time.temporal.ChronoUnit.DAYS.between(today, flow.date) / 365.25)
+private fun estimatedReturn(bond: Bond, afterTax: Boolean): Double? {
+    val lots = bond.purchaseLots
+    if (lots.isEmpty() || bond.maturityDate.isBefore(lots.maxOf { it.purchaseDate })) return null
+    val earliestDate = lots.minOf { it.purchaseDate }
+    val datedFlows = mutableListOf<Pair<LocalDate, Double>>()
+    lots.forEach { lot -> datedFlows.add(lot.purchaseDate to -(lot.cleanPrice + lot.accruedInterest + lot.fees)) }
+    couponSchedule(bond, earliestDate).forEach { flow ->
+        val coupon = if (afterTax) flow.netCoupon else flow.grossCoupon
+        if (coupon > 0) datedFlows.add(flow.date to coupon)
+        if (flow.principal > 0) datedFlows.add(flow.date to flow.principal)
+    }
+    if (datedFlows.none { it.second > 0.0 }) return null
+    val origin = datedFlows.minOf { it.first }
+    fun npv(rate: Double): Double = datedFlows.sumOf { (date, amount) ->
+        amount / (1.0 + rate).pow(java.time.temporal.ChronoUnit.DAYS.between(origin, date) / 365.25)
     }
     var low = -0.99
     var high = 5.0
-    if (presentValue(low) < bond.cleanPrice || presentValue(high) > bond.cleanPrice) return null
+    if (npv(low) * npv(high) > 0) return null
     repeat(180) {
         val mid = (low + high) / 2.0
-        if (presentValue(mid) > bond.cleanPrice) low = mid else high = mid
+        if (npv(mid) > 0) low = mid else high = mid
     }
     return ((low + high) / 2.0) * 100.0
 }
@@ -654,11 +797,24 @@ private fun loadBonds(context: android.content.Context): List<Bond> = try {
     val array = JSONArray(context.getSharedPreferences(PREFS, 0).getString(BONDS_KEY, "[]"))
     (0 until array.length()).mapNotNull { index ->
         val item = array.getJSONObject(index)
+        val id = item.getString("id")
+        val faceValue = item.getDouble("face")
+        val cleanPrice = item.getDouble("price")
+        val lots = item.optJSONArray("lots")?.let { arrayOfLots ->
+            (0 until arrayOfLots.length()).map { lotIndex ->
+                val lot = arrayOfLots.getJSONObject(lotIndex)
+                PurchaseLot(
+                    id = lot.getString("id"), purchaseDate = LocalDate.parse(lot.getString("purchaseDate"), StorageDateFormat),
+                    faceValue = lot.getDouble("face"), cleanPrice = lot.getDouble("price"),
+                    accruedInterest = lot.optDouble("accrued", 0.0), fees = lot.optDouble("fees", 0.0)
+                )
+            }
+        } ?: listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice))
         Bond(
-            id = item.getString("id"), name = item.getString("name"), faceValue = item.getDouble("face"),
-            couponRate = item.getDouble("coupon"), cleanPrice = item.getDouble("price"),
+            id = id, name = item.getString("name"), faceValue = faceValue,
+            couponRate = item.getDouble("coupon"), cleanPrice = cleanPrice,
             maturityDate = LocalDate.parse(item.getString("maturity"), StorageDateFormat), nextCouponDate = LocalDate.parse(item.getString("nextCoupon"), StorageDateFormat),
-            frequency = item.getInt("frequency"), taxRate = item.getDouble("tax")
+            frequency = item.getInt("frequency"), taxRate = item.getDouble("tax"), lots = lots
         )
     }
 } catch (_: Exception) { emptyList() }
@@ -667,18 +823,23 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
     val array = JSONArray()
     bonds.forEach { bond ->
         array.put(JSONObject().apply {
-            put("id", bond.id); put("name", bond.name); put("face", bond.faceValue); put("coupon", bond.couponRate)
-            put("price", bond.cleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
+            put("id", bond.id); put("name", bond.name); put("face", bond.totalFaceValue); put("coupon", bond.couponRate)
+            put("price", bond.totalCleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
             put("frequency", bond.frequency); put("tax", bond.taxRate)
+            put("lots", JSONArray().apply { bond.purchaseLots.forEach { lot -> put(JSONObject().apply {
+                put("id", lot.id); put("purchaseDate", lot.purchaseDate.format(StorageDateFormat)); put("face", lot.faceValue)
+                put("price", lot.cleanPrice); put("accrued", lot.accruedInterest); put("fees", lot.fees)
+            }) } })
         })
     }
     context.getSharedPreferences(PREFS, 0).edit().putString(BONDS_KEY, array.toString()).apply()
 }
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
+private fun netReturnLabel(bond: Bond) = if (bond.purchaseLots.size > 1) "Estimated Net Return" else "Estimated Net YTM"
 private fun money(value: Double) = "UGX " + String.format(Locale.US, "%,.0f", value)
 private fun premiumDiscount(bond: Bond): PricePosition {
-    val difference = bond.cleanPrice - bond.faceValue
+    val difference = bond.totalCleanPrice - bond.totalFaceValue
     if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", "UGX 0", Muted)
     val label = if (difference > 0) "Premium" else "Discount"
     val color = if (difference > 0) PremiumRed else DiscountGreen
