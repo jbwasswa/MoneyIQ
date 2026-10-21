@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,9 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +48,8 @@ private val DisplayDateFormat = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Local
 private val StorageDateFormat = DateTimeFormatter.ISO_LOCAL_DATE
 private const val PREFS = "bondwise_local"
 private const val BONDS_KEY = "saved_bonds"
+private val PremiumRed = Color(0xFFB54747)
+private val DiscountGreen = Color(0xFF16835D)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,6 +85,8 @@ data class Cashflow(
     val principal: Double
 )
 
+data class PricePosition(val label: String, val detail: String, val color: Color)
+
 data class BondForm(
     val id: String? = null,
     val name: String = "",
@@ -110,8 +117,9 @@ fun BondWiseApp() {
     val context = LocalContext.current
     val bonds = remember { mutableStateListOf<Bond>().apply { addAll(loadBonds(context)) } }
     var page by remember { mutableStateOf("Overview") }
-    var rank by remember { mutableStateOf("Net YTM") }
+    var rank by remember { mutableStateOf("Estimated Net YTM") }
     var showAdd by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
 
@@ -137,7 +145,7 @@ fun BondWiseApp() {
             }
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad)) {
-                Header()
+                Header(onHelp = { showHelp = true })
                 when (page) {
                     "Overview" -> Overview(bonds, onCompare = { page = "Compare" }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it })
                     "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond)
@@ -149,26 +157,28 @@ fun BondWiseApp() {
         if (showAdd) AddBondDialog(onDismiss = { showAdd = false }, onAdd = { addBond(it); showAdd = false })
         editingBond?.let { bond -> EditBondDialog(bond, onDismiss = { editingBond = null }, onSave = { updateBond(it); editingBond = null }) }
         scheduledBond?.let { ScheduleDialog(it, onDismiss = { scheduledBond = null }) }
+        if (showHelp) HelpDialog(onDismiss = { showHelp = false })
     }
 }
 
-@Composable private fun Header() {
+@Composable private fun Header(onHelp: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(Navy).padding(horizontal = 20.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("▥", color = Color(0xFF6DE0D1), fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(10.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text("BondWise UG", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("Compare bonds and coupon income", color = Color(0xFFD5E4EF), fontSize = 11.sp)
         }
+        TextButton(onClick = onHelp) { Text("? Help", color = Color.White, fontSize = 12.sp) }
     }
 }
 
 @Composable private fun Overview(bonds: List<Bond>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionTitle("Your watchlist", "${bonds.size} BONDS") }
+        item { SectionTitle("Your watchlist", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
         if (bonds.isEmpty()) {
             item {
                 CardBox {
@@ -181,9 +191,9 @@ fun BondWiseApp() {
             }
         } else {
             val best = bonds.maxByOrNull { estimatedYtm(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
-            item { CardBox { Text("Highest estimated net YTM", color = Muted, fontSize = 12.sp); Text(best?.let { "${estimatedYtm(it, true)?.fmt() ?: "—"}%" } ?: "—", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold); Text(best?.name ?: "No bond selected", color = Muted, fontSize = 12.sp); Spacer(Modifier.height(5.dp)); Text("Calculated from the dates and tax rate you entered. Not a live market quote.", color = Muted, fontSize = 11.sp) } }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Bonds saved", bonds.size.toString(), Modifier.weight(1f)); MetricCard("Annual net coupons", money(bonds.sumOf { it.annualNetCoupon }), Modifier.weight(1f)) } }
-            item { SectionTitle("Highest estimated net YTM", "YOUR DATA") }
+            item { CardBox { Text("Estimated Net YTM", color = Muted, fontSize = 12.sp); Text(best?.let { "${estimatedYtm(it, true)?.fmt() ?: "—"}%" } ?: "—", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold); Text(best?.name ?: "No bond selected", color = Muted, fontSize = 12.sp); Spacer(Modifier.height(5.dp)); Text("Calculated from the dates and tax rate you entered. Not a live market quote.", color = Muted, fontSize = 11.sp) } }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Saved bonds", if (bonds.size == 1) "1 Bond Saved" else "${bonds.size} Bonds Saved", Modifier.weight(1f)); MetricCard("Annual net coupons", money(bonds.sumOf { it.annualNetCoupon }), Modifier.weight(1f)) } }
+            item { SectionTitle("Estimated Net YTM", "YOUR DATA") }
             items(bonds.sortedByDescending { estimatedYtm(it, true) ?: Double.NEGATIVE_INFINITY }.take(3)) { bond ->
                 BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null)
             }
@@ -223,7 +233,7 @@ fun BondWiseApp() {
                 Text("Sort by", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(5.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("Net YTM", "Coupon income", "Maturity").forEach { FilterChip(selected = rank == it, onClick = { onRank(it) }, label = { Text(it, fontSize = 11.sp) }) }
+                    listOf("Estimated Net YTM", "Coupon income", "Maturity").forEach { FilterChip(selected = rank == it, onClick = { onRank(it) }, label = { Text(it, fontSize = 9.sp) }) }
                 }
                 Text("Sorting highlights one measure; it does not decide which bond suits you.", fontSize = 11.sp, color = Muted)
             }
@@ -234,7 +244,6 @@ fun BondWiseApp() {
             items(sorted) { bond -> BondCard(bond, isTop = bond == sorted.firstOrNull(), onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add a bond") } }
         }
-        item { TaxNotice() }
     }
 }
 
@@ -264,11 +273,11 @@ fun BondWiseApp() {
                     Spacer(Modifier.height(8.dp))
                     CompareResultHeader(firstBond.name, secondBond.name)
                     CompareResultRow("Coupon rate", "${firstBond.couponRate.fmt()}%", "${secondBond.couponRate.fmt()}%")
-                    CompareResultRow("Face value", money(firstBond.faceValue), money(secondBond.faceValue))
-                    CompareResultRow("Purchase price", money(firstBond.cleanPrice), money(secondBond.cleanPrice))
-                    CompareResultRow("Premium / discount", premiumDiscount(firstBond), premiumDiscount(secondBond))
-                    CompareResultRow("Estimated net YTM", "${estimatedYtm(firstBond, true)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, true)?.fmt() ?: "—"}%")
-                    CompareResultRow("Estimated gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
+                    CompareResultRow("Face Value", money(firstBond.faceValue), money(secondBond.faceValue))
+                    CompareResultRow("Purchase Price", money(firstBond.cleanPrice), money(secondBond.cleanPrice))
+                    ComparePricePositionRow(firstBond, secondBond)
+                    CompareResultRow("Estimated Net YTM", "${estimatedYtm(firstBond, true)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, true)?.fmt() ?: "—"}%")
+                    CompareResultRow("Estimated Gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
                     CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
                     CompareResultRow("Net current yield", "${firstBond.netCurrentYield.fmt()}%", "${secondBond.netCurrentYield.fmt()}%")
                     CompareResultRow("Maturity", firstBond.maturityDate.format(DisplayDateFormat), secondBond.maturityDate.format(DisplayDateFormat))
@@ -288,7 +297,6 @@ fun BondWiseApp() {
         } else {
             item { CardBox { Text("Complete both bond entries to see the comparison.", color = Muted, fontSize = 12.sp) } }
         }
-        item { TaxNotice() }
     }
 }
 
@@ -314,6 +322,23 @@ fun BondWiseApp() {
     }
 }
 
+@Composable private fun ComparePricePositionRow(first: Bond, second: Bond) {
+    val firstPosition = premiumDiscount(first)
+    val secondPosition = premiumDiscount(second)
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Price vs face", Modifier.weight(1.2f), color = Muted, fontSize = 11.sp)
+        PricePositionCell(firstPosition, Modifier.weight(1f))
+        PricePositionCell(secondPosition, Modifier.weight(1f))
+    }
+}
+
+@Composable private fun PricePositionCell(position: PricePosition, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(position.label, color = position.color, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+        Text(position.detail, color = position.color, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+    }
+}
+
 @Composable private fun Calculator(onSave: (Bond) -> Unit, onSchedule: (Bond) -> Unit) {
     var form by remember { mutableStateOf(BondForm()) }
     val bond = form.toBond()
@@ -333,25 +358,24 @@ fun BondWiseApp() {
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Gross estimated YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
-                        MetricCard("Net estimated YTM", "${estimatedYtm(bond, true)?.fmt() ?: "—"}%", Modifier.weight(1f))
+                        MetricCard("Estimated Gross YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
+                        MetricCard("Estimated Net YTM", "${estimatedYtm(bond, true)?.fmt() ?: "—"}%", Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Dated cash-flow estimate; tax is applied to coupon interest only. Price is treated as clean (excluding accrued interest).", fontSize = 11.sp, color = Muted)
+                    Text("Dated cash-flow estimate. Purchase Price is entered without accrued interest.", fontSize = 11.sp, color = Muted)
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = { onSchedule(bond) }, modifier = Modifier.fillMaxWidth()) { Text("Preview coupon schedule") }
                     Button(onClick = { onSave(bond) }, modifier = Modifier.fillMaxWidth()) { Text("Save to My bonds") }
                 }
             }
         }
-        item { TaxNotice() }
     }
 }
 
 @Composable private fun Portfolio(bonds: List<Bond>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("My bonds", "SAVED ON DEVICE") }
-        item { CardBox { Text("${bonds.size} bonds saved", fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your entries stay on this device.", color = Muted, fontSize = 12.sp); Text("Total annual coupon after tax: ${money(bonds.sumOf { it.annualNetCoupon })}", color = Muted, fontSize = 12.sp) } }
+        item { CardBox { Text(if (bonds.size == 1) "1 Bond Saved" else "${bonds.size} Bonds Saved", fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your entries stay on this device.", color = Muted, fontSize = 12.sp); Text("Total annual coupon after tax: ${money(bonds.sumOf { it.annualNetCoupon })}", color = Muted, fontSize = 12.sp) } }
         if (bonds.isEmpty()) {
             item { CardBox { Text("Your bond list is empty", fontWeight = FontWeight.Bold); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
@@ -364,9 +388,9 @@ fun BondWiseApp() {
 @Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit) {
     CardBox {
         TextFieldBlock("Bond name", form.name, { onChange(form.copy(name = it)) }, KeyboardType.Text)
-        TextFieldBlock("Face value (UGX)", form.face, { onChange(form.copy(face = it)) }, KeyboardType.Number, groupThousands = true)
+        TextFieldBlock("Face Value", form.face, { onChange(form.copy(face = it)) }, KeyboardType.NumberPassword, groupThousands = true)
         TextFieldBlock("Annual coupon rate (%)", form.coupon, { onChange(form.copy(coupon = it)) }, KeyboardType.Decimal)
-        TextFieldBlock("Purchase price, excluding accrued interest (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.Number, groupThousands = true)
+        TextFieldBlock("Purchase Price", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, groupThousands = true)
         Text("Coupon frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             listOf(2 to "Semi-annual", 1 to "Annual").forEach { (n, label) ->
@@ -375,8 +399,7 @@ fun BondWiseApp() {
         }
         DateField("Next coupon date", form.nextCouponDate) { onChange(form.copy(nextCouponDate = it)) }
         DateField("Maturity date", form.maturityDate) { onChange(form.copy(maturityDate = it)) }
-        TextFieldBlock("Coupon withholding tax (%)", form.tax, { onChange(form.copy(tax = it)) }, KeyboardType.Decimal, supporting = "Defaults to 10%; change it to the rate applicable to you.")
-        Text("BondWise applies this rate to coupon interest only, not principal redemption.", color = Muted, fontSize = 10.sp)
+        TextFieldBlock("Coupon withholding tax (%)", form.tax, { onChange(form.copy(tax = it)) }, KeyboardType.Decimal)
     }
 }
 
@@ -421,6 +444,7 @@ fun BondWiseApp() {
 }
 
 @Composable private fun TextFieldBlock(label: String, value: String, onValue: (String) -> Unit, keyboard: KeyboardType, supporting: String? = null, groupThousands: Boolean = false) {
+    val focusManager = LocalFocusManager.current
     val labelContent: @Composable () -> Unit = { Text(label, fontSize = 12.sp) }
     val supportingContent: (@Composable () -> Unit)? = supporting?.let { { Text(it, fontSize = 10.sp) } }
     if (groupThousands) {
@@ -445,19 +469,23 @@ fun BondWiseApp() {
             label = labelContent,
             singleLine = true,
             supportingText = supportingContent,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp)
         )
     } else {
         OutlinedTextField(
             value = value, onValueChange = onValue, label = labelContent, singleLine = true,
             supportingText = supportingContent,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboard), modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp)
+            keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp)
         )
     }
 }
 
 @Composable private fun BondCard(bond: Bond, isTop: Boolean = false, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?) {
+    val position = premiumDiscount(bond)
     CardBox {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
@@ -468,20 +496,20 @@ fun BondWiseApp() {
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("${estimatedYtm(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-                Text("estimated net YTM", fontSize = 10.sp, color = Muted)
+                Text("Estimated Net YTM", fontSize = 10.sp, color = Muted)
             }
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricCard("Purchase price", money(bond.cleanPrice), Modifier.weight(1f))
-            MetricCard("Face value", money(bond.faceValue), Modifier.weight(1f))
+            MetricCard("Purchase Price", money(bond.cleanPrice), Modifier.weight(1f))
+            MetricCard("Face Value", money(bond.faceValue), Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
             MetricCard("Net annual coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
-            MetricCard("Premium / discount", premiumDiscount(bond), Modifier.weight(1f))
+            MetricCard(position.label, position.detail, Modifier.weight(1f), position.color, position.color)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
-            MetricCard("Gross YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
+            MetricCard("Estimated Gross YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
             MetricCard("Tax on coupons", "${bond.taxRate.fmt()}%", Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -500,7 +528,7 @@ fun BondWiseApp() {
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(bond.name, fontWeight = FontWeight.Bold)
-                Text("Coupon dates from ${bond.nextCouponDate.format(DisplayDateFormat)} through maturity. Tax is calculated on coupon interest; principal is returned at maturity.", fontSize = 11.sp, color = Muted)
+                Text("Coupon payments are scheduled from ${bond.nextCouponDate.format(DisplayDateFormat)} through maturity. Principal is returned at maturity.", fontSize = 11.sp, color = Muted)
                 schedule.forEach { row ->
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -521,8 +549,28 @@ fun BondWiseApp() {
     )
 }
 
-@Composable private fun TaxNotice() {
-    Notice("Tax rates vary by bond, maturity and investor. The 10% default is editable; confirm the applicable rate before relying on after-tax figures.")
+@Composable private fun HelpDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("BondWise Help") },
+        text = {
+            Column(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                HelpSection("Tax", "The 10% tax value is an editable default, not a universal rate. Confirm the rate that applies to your bond and circumstances. BondWise applies the entered rate to coupon interest only, not principal repayment.")
+                HelpSection("Estimated Net YTM", "This is an annualized estimate based on the entered Purchase Price, coupon dates, maturity, and tax rate. It assumes the bond is held to maturity and payments are made as scheduled. It is not a live market quote or guaranteed return.")
+                HelpSection("Purchase Price", "Enter the bond price before accrued interest. The current estimate does not include accrued interest, transaction fees, or market-specific day-count conventions.")
+                HelpSection("Premium or discount", "BondWise compares Purchase Price with Face Value. A price above face value is shown as a red premium; a price below face value is shown as a green discount.")
+                HelpSection("Compare bonds", "A higher estimated net YTM means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
+}
+
+@Composable private fun HelpSection(title: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(body, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+    }
 }
 
 @Composable private fun CardBox(content: @Composable ColumnScope.() -> Unit) {
@@ -531,9 +579,9 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier) {
+@Composable private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color = Ink, labelColor: Color = Muted) {
     Surface(color = Color(0xFFF5F8FB), shape = RoundedCornerShape(12.dp), modifier = modifier) {
-        Column(Modifier.padding(10.dp)) { Text(label, color = Muted, fontSize = 10.sp); Text(value, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+        Column(Modifier.padding(10.dp)) { Text(label, color = labelColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold); Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
     }
 }
 
@@ -541,12 +589,6 @@ fun BondWiseApp() {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
-    }
-}
-
-@Composable private fun Notice(text: String) {
-    Surface(color = Color(0xFFFFF7DF), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFFF0DFAA))) {
-        Text(text, color = Color(0xFF70551B), fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(12.dp))
     }
 }
 
@@ -616,12 +658,13 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
 private fun money(value: Double) = "UGX " + String.format(Locale.US, "%,.0f", value)
-private fun premiumDiscount(bond: Bond): String {
+private fun premiumDiscount(bond: Bond): PricePosition {
     val difference = bond.cleanPrice - bond.faceValue
-    if (kotlin.math.abs(difference) < 0.005) return "At face value"
+    if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", "UGX 0 (0.00%)", Muted)
     val percentage = kotlin.math.abs(difference) / bond.faceValue * 100.0
     val label = if (difference > 0) "Premium" else "Discount"
-    return "$label ${money(kotlin.math.abs(difference))} (${percentage.fmt()}%)"
+    val color = if (difference > 0) PremiumRed else DiscountGreen
+    return PricePosition(label, "${money(kotlin.math.abs(difference))} (${percentage.fmt()}%)", color)
 }
 
 private fun String.toAmountOrNull(): Double? = replace(",", "").trim().toDoubleOrNull()
