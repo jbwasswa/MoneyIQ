@@ -1,15 +1,11 @@
-# BondWise UG Android MVP
+# BondWise UG Android app
 
-A native Android Studio starter based on the BondWise design prototype. It includes an overview, a bond comparison watchlist, an estimate calculator, and a local-session bond list.
+BondWise is a standalone Android app in this repository. It starts with an empty list and saves bonds locally on the device. Add a bond with its face value, coupon rate, clean purchase price, maturity date, next coupon date, frequency, and withholding tax rate (default 10%).
 
-## Run
+The app calculates gross and after-tax current yield and dated-cash-flow YTM estimates, compares saved bonds, and generates future coupon rows with gross coupon, estimated tax, net coupon, and principal redemption. Coupon tax is applied only to interest. If maturity does not coincide with a scheduled coupon date, the schedule shows principal at maturity but does not estimate a stub coupon.
 
-Open this folder in Android Studio and let Gradle sync. The project uses Kotlin, Jetpack Compose, Android Gradle Plugin 8.7.3, and compile SDK 35.
+YTM is an estimate using actual calendar days divided by 365.25, price excluding accrued interest, regular coupon intervals, and principal redemption at face value. It does not apply market-specific day-count, settlement, accrued-interest, or tax treatment conventions. The editable 10% tax default should not be treated as a universal rate.
 
-## Yield assumptions
+## Build
 
-Estimated YTM is solved as the periodic internal rate of return for regular coupon periods, redemption at par, and purchase price excluding accrued interest. The calculation does not model real settlement dates, odd first/last coupon periods, day-count rules, or taxes/fees. The sample bond figures are illustrative and no market data is connected.
-
-## Current scope
-
-The add-bond list is held in memory for the current app session. Portfolio persistence, market feeds, exact dated cash-flow conventions, export, and production accessibility/localization remain future work.
+Open this folder in Android Studio, or use the repository workflow `.github/workflows/bondwise-apk.yml`. The workflow uploads `BondWise-debug.apk` as an artifact.
