@@ -68,8 +68,7 @@ data class PurchaseLot(
     val purchaseDate: LocalDate,
     val faceValue: Double,
     val cleanPrice: Double,
-    val accruedInterest: Double = 0.0,
-    val fees: Double = 0.0
+    val purchaseDateConfirmed: Boolean = true
 )
 
 data class Bond(
@@ -84,10 +83,10 @@ data class Bond(
     val taxRate: Double,
     val lots: List<PurchaseLot> = emptyList()
 ) {
-    val purchaseLots: List<PurchaseLot> get() = lots.ifEmpty { listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice)) }
+    val purchaseLots: List<PurchaseLot> get() = lots.ifEmpty { listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = false)) }
     val totalFaceValue: Double get() = purchaseLots.sumOf { it.faceValue }
     val totalCleanPrice: Double get() = purchaseLots.sumOf { it.cleanPrice }
-    val totalCashOutlay: Double get() = purchaseLots.sumOf { it.cleanPrice + it.accruedInterest + it.fees }
+    val totalCashOutlay: Double get() = totalCleanPrice
     val annualGrossCoupon: Double get() = totalFaceValue * couponRate / 100.0
     val annualNetCoupon: Double get() = annualGrossCoupon * (1.0 - taxRate / 100.0)
     val grossCurrentYield: Double get() = if (totalCleanPrice > 0) annualGrossCoupon / totalCleanPrice * 100.0 else 0.0
@@ -96,7 +95,7 @@ data class Bond(
 
 private fun Bond.toForm(): BondForm {
     val firstLot = purchaseLots.first()
-    return BondForm(id = id, name = name, face = totalFaceValue.grouped(), coupon = couponRate.toString(), price = totalCleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate, purchaseDate = firstLot.purchaseDate, accruedInterest = firstLot.accruedInterest.grouped(), fees = firstLot.fees.grouped())
+    return BondForm(id = id, name = name, face = totalFaceValue.grouped(), coupon = couponRate.toString(), price = totalCleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate, purchaseDate = firstLot.purchaseDate, purchaseDateConfirmed = firstLot.purchaseDateConfirmed)
 }
 
 data class Cashflow(
@@ -120,20 +119,17 @@ data class BondForm(
     val nextCouponDate: LocalDate = LocalDate.now().plusMonths(6),
     val maturityDate: LocalDate = LocalDate.now().plusYears(5),
     val purchaseDate: LocalDate = LocalDate.now(),
-    val accruedInterest: String = "0",
-    val fees: String = "0"
+    val purchaseDateConfirmed: Boolean = true
 ) {
     fun toBond(): Bond? {
         val faceValue = face.toAmountOrNull() ?: return null
         val couponRate = coupon.toDoubleOrNull() ?: return null
         val cleanPrice = price.toAmountOrNull() ?: return null
-        val accrued = accruedInterest.toAmountOrNull() ?: return null
-        val feeAmount = fees.toAmountOrNull() ?: return null
         val taxRate = tax.toDoubleOrNull() ?: return null
-        if (name.isBlank() || faceValue <= 0 || couponRate < 0 || cleanPrice <= 0 || accrued < 0 || feeAmount < 0 || taxRate !in 0.0..100.0) return null
+        if (name.isBlank() || faceValue <= 0 || couponRate < 0 || cleanPrice <= 0 || taxRate !in 0.0..100.0) return null
         if (frequency !in listOf(1, 2) || nextCouponDate.isBefore(LocalDate.now()) || !nextCouponDate.isBefore(maturityDate)) return null
         if (purchaseDate.isAfter(LocalDate.now()) || !purchaseDate.isBefore(maturityDate)) return null
-        val lot = PurchaseLot(purchaseDate = purchaseDate, faceValue = faceValue, cleanPrice = cleanPrice, accruedInterest = accrued, fees = feeAmount)
+        val lot = PurchaseLot(purchaseDate = purchaseDate, faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = purchaseDateConfirmed)
         return Bond(
             id = id ?: UUID.randomUUID().toString(), name = name.trim(), faceValue = faceValue, couponRate = couponRate, cleanPrice = cleanPrice,
             maturityDate = maturityDate, nextCouponDate = nextCouponDate, frequency = frequency, taxRate = taxRate, lots = listOf(lot)
@@ -144,17 +140,13 @@ data class BondForm(
 data class PurchaseLotForm(
     val purchaseDate: LocalDate = LocalDate.now(),
     val faceValue: String = "",
-    val cleanPrice: String = "",
-    val accruedInterest: String = "0",
-    val fees: String = "0"
+    val cleanPrice: String = ""
 ) {
     fun toLot(maturityDate: LocalDate): PurchaseLot? {
         val face = faceValue.toAmountOrNull() ?: return null
         val price = cleanPrice.toAmountOrNull() ?: return null
-        val accrued = accruedInterest.toAmountOrNull() ?: return null
-        val feeAmount = fees.toAmountOrNull() ?: return null
-        if (face <= 0 || price <= 0 || accrued < 0 || feeAmount < 0 || purchaseDate.isAfter(LocalDate.now()) || !purchaseDate.isBefore(maturityDate)) return null
-        return PurchaseLot(purchaseDate = purchaseDate, faceValue = face, cleanPrice = price, accruedInterest = accrued, fees = feeAmount)
+        if (face <= 0 || price <= 0 || purchaseDate.isAfter(LocalDate.now()) || !purchaseDate.isBefore(maturityDate)) return null
+        return PurchaseLot(purchaseDate = purchaseDate, faceValue = face, cleanPrice = price)
     }
 }
 
@@ -370,7 +362,7 @@ fun BondWiseApp() {
                         else -> "Both have the same estimated net return."
                     }
                     Text(lead, color = Teal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text("This comparison uses the entered costs and accrued interest. It does not apply market-specific day-count, settlement or coupon-entitlement conventions.", color = Muted, fontSize = 10.sp)
+                    Text("This comparison uses the total purchase prices you entered. It does not apply market-specific day-count, settlement or coupon-entitlement conventions.", color = Muted, fontSize = 10.sp)
                 }
             }
         } else {
@@ -441,7 +433,7 @@ fun BondWiseApp() {
                         MetricCard(netReturnLabel(bond), "${estimatedReturn(bond, true)?.fmt() ?: "—"}%", Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Dated cash-flow estimate. Accrued interest and fees are recorded separately and included in the purchase outflow.", fontSize = 11.sp, color = Muted)
+                    Text("Dated cash-flow estimate using the total purchase price you enter for each purchase.", fontSize = 11.sp, color = Muted)
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = { onSchedule(bond) }, modifier = Modifier.fillMaxWidth()) { Text("Preview coupon schedule") }
                     Button(onClick = { onSave(bond) }, modifier = Modifier.fillMaxWidth()) { Text("Save to My bonds") }
@@ -470,10 +462,8 @@ fun BondWiseApp() {
         if (includePurchaseDetails) TextFieldBlock("Face Value", form.face, { onChange(form.copy(face = it)) }, KeyboardType.NumberPassword, groupThousands = true)
         TextFieldBlock("Annual coupon rate (%)", form.coupon, { onChange(form.copy(coupon = it)) }, KeyboardType.Decimal)
         if (includePurchaseDetails) {
-            TextFieldBlock("Clean Purchase Price", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, supporting = "Excludes accrued interest and fees.", groupThousands = true)
-            DateField("Purchase date", form.purchaseDate) { onChange(form.copy(purchaseDate = it)) }
-            TextFieldBlock("Accrued interest paid (UGX)", form.accruedInterest, { onChange(form.copy(accruedInterest = it)) }, KeyboardType.NumberPassword, groupThousands = true)
-            TextFieldBlock("Fees (UGX)", form.fees, { onChange(form.copy(fees = it)) }, KeyboardType.NumberPassword, groupThousands = true)
+            TextFieldBlock("Purchase Price (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, supporting = "Enter the total amount paid to the bank.", groupThousands = true)
+            DateField("Purchase date", form.purchaseDate) { onChange(form.copy(purchaseDate = it, purchaseDateConfirmed = true)) }
         } else {
             Text("Purchase lots are unchanged here. Use Purchases to add or remove a tranche.", color = Muted, fontSize = 11.sp)
         }
@@ -518,10 +508,8 @@ fun BondWiseApp() {
                 Text(bond.name, color = Teal, fontWeight = FontWeight.Bold)
                 DateField("Purchase date", form.purchaseDate) { form = form.copy(purchaseDate = it) }
                 TextFieldBlock("Face value acquired (UGX)", form.faceValue, { form = form.copy(faceValue = it) }, KeyboardType.NumberPassword, groupThousands = true)
-                TextFieldBlock("Clean purchase price (UGX)", form.cleanPrice, { form = form.copy(cleanPrice = it) }, KeyboardType.NumberPassword, supporting = "Enter the total price before accrued interest and fees.", groupThousands = true)
-                TextFieldBlock("Accrued interest paid (UGX)", form.accruedInterest, { form = form.copy(accruedInterest = it) }, KeyboardType.NumberPassword, groupThousands = true)
-                TextFieldBlock("Fees (UGX)", form.fees, { form = form.copy(fees = it) }, KeyboardType.NumberPassword, groupThousands = true)
-                if (error) Text("Enter positive face value and purchase price, non-negative accrued interest and fees, and a purchase date that is not in the future or after maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
+                TextFieldBlock("Purchase price (UGX)", form.cleanPrice, { form = form.copy(cleanPrice = it) }, KeyboardType.NumberPassword, supporting = "Enter the total amount paid to the bank.", groupThousands = true)
+                if (error) Text("Enter positive face value and purchase price, and a purchase date that is not in the future or after maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
             }
         },
         confirmButton = { TextButton(onClick = { val lot = form.toLot(bond.maturityDate); if (lot == null) error = true else onAdd(lot) }) { Text("Save purchase") } },
@@ -537,17 +525,16 @@ fun BondWiseApp() {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(bond.name, color = Teal, fontWeight = FontWeight.Bold)
                 Text("Combined face value: ${money(bond.totalFaceValue)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                Text("Combined clean purchase price: ${money(bond.totalCleanPrice)}", fontSize = 11.sp)
-                Text("Accrued interest and fees: ${money(bond.purchaseLots.sumOf { it.accruedInterest + it.fees })}", fontSize = 11.sp)
+                Text("Combined purchase price: ${money(bond.totalCleanPrice)}", fontSize = 11.sp)
+                Text("Total invested: ${money(bond.totalCashOutlay)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text("Total invested: ${money(bond.totalCashOutlay)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 bond.purchaseLots.sortedBy { it.purchaseDate }.forEachIndexed { index, lot ->
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                             Column(Modifier.weight(1f)) {
-                                Text("Lot ${index + 1} · ${lot.purchaseDate.format(DisplayDateFormat)}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("Lot ${index + 1} · ${if (lot.purchaseDateConfirmed) lot.purchaseDate.format(DisplayDateFormat) else "Purchase date needs review"}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Text("Face value: ${money(lot.faceValue)}", fontSize = 11.sp)
-                                Text("Clean purchase price: ${money(lot.cleanPrice)}", fontSize = 11.sp)
-                                Text("Accrued interest: ${money(lot.accruedInterest)} · Fees: ${money(lot.fees)}", fontSize = 10.sp, color = Muted)
+                                Text("Purchase price: ${money(lot.cleanPrice)}", fontSize = 11.sp)
                                 val difference = lot.cleanPrice - lot.faceValue
                                 val label = when { kotlin.math.abs(difference) < 0.005 -> "At face value"; difference > 0 -> "Premium ${money(difference)}"; else -> "Discount ${money(-difference)}" }
                                 val color = when { kotlin.math.abs(difference) < 0.005 -> Muted; difference > 0 -> PremiumRed; else -> DiscountGreen }
@@ -637,6 +624,12 @@ fun BondWiseApp() {
                 Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
+                if (bond.purchaseLots.size == 1) {
+                    val lot = bond.purchaseLots.first()
+                    Text(if (lot.purchaseDateConfirmed) "Purchased ${lot.purchaseDate.format(DisplayDateFormat)}" else "Purchase date needs review · Edit bond", color = if (lot.purchaseDateConfirmed) Muted else PremiumRed, fontSize = 11.sp)
+                } else {
+                    Text("${bond.purchaseLots.size} purchases · ${bond.purchaseLots.minOf { it.purchaseDate }.format(DisplayDateFormat)} to ${bond.purchaseLots.maxOf { it.purchaseDate }.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
+                }
                 Text("Next coupon ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -707,9 +700,9 @@ fun BondWiseApp() {
         text = {
             Column(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 HelpSection("Tax", "The 10% tax value is an editable default, not a universal rate. Confirm the rate that applies to your bond and circumstances. BondWise applies the entered rate to coupon interest only, not principal repayment.")
-                HelpSection("Estimated return", "For one purchase lot, the estimate is based on that lot’s purchase price, dates, maturity and coupon tax rate. For multiple lots, BondWise calculates an annualized return (XIRR) using each dated purchase outflow, projected coupon payments, fees and principal at maturity. It includes coupons from each lot’s purchase date, but it is not a live market valuation or guaranteed return.")
-                HelpSection("Multiple purchases", "Use one saved bond for all purchases of the same bond. Add each purchase with its own date, face value, clean price, accrued interest and fees. The bond card totals the lots, while Purchases shows each lot and its premium or discount.")
-                HelpSection("Purchase price", "Enter each lot’s clean purchase price before accrued interest. Enter accrued interest and fees in their separate fields; they are included in the dated investment outflow. The app does not apply market-specific day-count or settlement conventions.")
+                HelpSection("Estimated return", "For one purchase lot, the estimate is based on that lot’s purchase price, purchase date, maturity and coupon tax rate. For multiple lots, BondWise calculates a combined annualized return (XIRR) using each dated purchase price, projected coupon payments and principal at maturity. It is not a live market valuation or guaranteed return.")
+                HelpSection("Multiple purchases", "Use one saved bond for all purchases of the same bond. Add each purchase with its own date, face value and total purchase price. The bond card totals the lots, while Purchases shows each lot and its premium or discount.")
+                HelpSection("Purchase price", "Enter the total amount the bank charged for each purchase. Do not add accrued interest or fees separately; include the amount shown by the bank. The app does not apply market-specific day-count or settlement conventions.")
                 HelpSection("Premium or discount", "BondWise compares Purchase Price with Face Value. A price above face value is shown as a red premium; a price below face value is shown as a green discount.")
                 HelpSection("Compare bonds", "A higher estimated net return means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
             }
@@ -776,7 +769,7 @@ private fun estimatedReturn(bond: Bond, afterTax: Boolean): Double? {
     if (lots.isEmpty() || bond.maturityDate.isBefore(lots.maxOf { it.purchaseDate })) return null
     val earliestDate = lots.minOf { it.purchaseDate }
     val datedFlows = mutableListOf<Pair<LocalDate, Double>>()
-    lots.forEach { lot -> datedFlows.add(lot.purchaseDate to -(lot.cleanPrice + lot.accruedInterest + lot.fees)) }
+    lots.forEach { lot -> datedFlows.add(lot.purchaseDate to -lot.cleanPrice) }
     couponSchedule(bond, earliestDate).forEach { flow ->
         val coupon = if (afterTax) flow.netCoupon else flow.grossCoupon
         if (coupon > 0) datedFlows.add(flow.date to coupon)
@@ -822,13 +815,15 @@ private fun loadBonds(context: android.content.Context): List<Bond> = try {
         val lots = item.optJSONArray("lots")?.let { arrayOfLots ->
             (0 until arrayOfLots.length()).map { lotIndex ->
                 val lot = arrayOfLots.getJSONObject(lotIndex)
+                val accrued = lot.optDouble("accrued", 0.0)
+                val fees = lot.optDouble("fees", 0.0)
                 PurchaseLot(
                     id = lot.getString("id"), purchaseDate = LocalDate.parse(lot.getString("purchaseDate"), StorageDateFormat),
-                    faceValue = lot.getDouble("face"), cleanPrice = lot.getDouble("price"),
-                    accruedInterest = lot.optDouble("accrued", 0.0), fees = lot.optDouble("fees", 0.0)
+                    faceValue = lot.getDouble("face"), cleanPrice = lot.getDouble("price") + accrued + fees,
+                    purchaseDateConfirmed = lot.optBoolean("purchaseDateConfirmed", true)
                 )
             }
-        } ?: listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice))
+        } ?: listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = false))
         Bond(
             id = id, name = item.getString("name"), faceValue = faceValue,
             couponRate = item.getDouble("coupon"), cleanPrice = cleanPrice,
@@ -846,8 +841,8 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
             put("price", bond.totalCleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
             put("frequency", bond.frequency); put("tax", bond.taxRate)
             put("lots", JSONArray().apply { bond.purchaseLots.forEach { lot -> put(JSONObject().apply {
-                put("id", lot.id); put("purchaseDate", lot.purchaseDate.format(StorageDateFormat)); put("face", lot.faceValue)
-                put("price", lot.cleanPrice); put("accrued", lot.accruedInterest); put("fees", lot.fees)
+                put("id", lot.id); put("purchaseDate", lot.purchaseDate.format(StorageDateFormat)); put("purchaseDateConfirmed", lot.purchaseDateConfirmed); put("face", lot.faceValue)
+                put("price", lot.cleanPrice)
             }) } })
         })
     }
