@@ -159,7 +159,6 @@ fun BondWiseApp() {
     var page by remember { mutableStateOf("Overview") }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
     val scope = rememberCoroutineScope()
-    var rank by remember { mutableStateOf("Estimated Net Return") }
     var showAdd by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
@@ -200,10 +199,10 @@ fun BondWiseApp() {
                             selected = page == item,
                             onClick = {
                                 val target = pages.indexOf(item)
-                                if (target >= 0) scope.launch { pagerState.scrollToPage(target) }
+                                if (target >= 0) scope.launch { pagerState.animateScrollToPage(target) }
                             },
-                            icon = { Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, fontSize = 18.sp) },
-                            label = { Text(item) }
+                            icon = { Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, fontSize = 19.sp) },
+                            label = { Text(when (item) { "Overview" -> "Home"; "Calculator" -> "Calc"; "My bonds" -> "Bonds"; else -> item }, fontSize = 10.sp, maxLines = 1) }
                         )
                     }
                 }
@@ -213,8 +212,8 @@ fun BondWiseApp() {
                 Header(onHelp = { showHelp = true })
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
-                        "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.scrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
-                        "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
+                        "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.animateScrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
+                        "Compare" -> Compare(bonds, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
                         "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
                         "Coupons" -> Coupons(bonds)
                         else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
@@ -254,22 +253,57 @@ fun BondWiseApp() {
 
 @Composable private fun Overview(bonds: List<Bond>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionTitle("Your watchlist", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
+        item { SectionTitle("Portfolio overview", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
         if (bonds.isEmpty()) {
             item {
                 CardBox {
-                    Text("Start with a bond you’re considering", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(5.dp))
-                    Text("Enter its price, coupon, dates and tax rate. BondWise will calculate estimated yields and future coupon payments.", color = Muted, fontSize = 13.sp)
+                    Text("Your portfolio is ready to build", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Track the bonds you own, purchase amounts, face value and upcoming coupon income.", color = Muted, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Add your first bond") }
+                    Button(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add your first bond") }
                 }
             }
         } else {
             val best = bonds.maxByOrNull { estimatedReturn(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
-            item { CardBox { Text(best?.let { netReturnLabel(it) } ?: "Estimated Net YTM", color = Muted, fontSize = 12.sp); Text(best?.let { "${estimatedReturn(it, true)?.fmt() ?: "—"}%" } ?: "—", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold); Text(best?.name ?: "No bond selected", color = Muted, fontSize = 12.sp); Spacer(Modifier.height(5.dp)); Text("Calculated from the purchase dates, coupon schedule, entered tax rate and maturity. Not a live market quote.", color = Muted, fontSize = 11.sp) } }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Saved bonds", if (bonds.size == 1) "1 Bond Saved" else "${bonds.size} Bonds Saved", Modifier.weight(1f)); MetricCard("Annual net coupons", money(bonds.sumOf { it.annualNetCoupon }), Modifier.weight(1f)) } }
-            item { SectionTitle("Estimated Net Return", "YOUR DATA") }
+            val nextCoupon = bonds.flatMap { bond -> couponSchedule(bond).filter { it.grossCoupon > 0 }.map { ScheduledCoupon(bond, it) } }.minByOrNull { it.cashflow.date }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
+                        MetricCard("Face value held", money(bonds.sumOf { it.totalFaceValue }), Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Total purchase price", money(bonds.sumOf { it.totalCleanPrice }), Modifier.weight(1f))
+                        MetricCard("Annual net coupons", money(bonds.sumOf { it.annualNetCoupon }), Modifier.weight(1f))
+                    }
+                }
+            }
+            if (nextCoupon != null) {
+                item {
+                    CardBox {
+                        Text("Next coupon", color = Muted, fontSize = 11.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(nextCoupon.bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("${nextCoupon.cashflow.date.format(DisplayDateFormat)} · ${daysRemaining(nextCoupon.cashflow.date)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            }
+                            Text(money(nextCoupon.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+            item {
+                CardBox {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Highest ${best?.let { netReturnLabel(it) } ?: "estimated net return"}", color = Muted, fontSize = 11.sp)
+                            Text(best?.name ?: "—", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                        Text(best?.let { estimatedReturn(it, true)?.fmt()?.plus("%") } ?: "—", color = Teal, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+            }
+            item { SectionTitle("Your bonds") }
             items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3)) { bond ->
                 BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
@@ -280,7 +314,7 @@ fun BondWiseApp() {
 }
 
 @Composable private fun Compare(
-    bonds: List<Bond>, rank: String, onRank: (String) -> Unit, onAdd: () -> Unit,
+    bonds: List<Bond>, onAdd: () -> Unit,
     onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit,
     onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit
 ) {
@@ -291,11 +325,7 @@ fun BondWiseApp() {
         QuickCompare(firstForm, { firstForm = it }, secondForm, { secondForm = it }, onSavedBonds = { compareMode = "Saved" })
         return
     }
-    val sorted = when (rank) {
-        "Coupon income" -> bonds.sortedByDescending { it.annualNetCoupon }
-        "Maturity" -> bonds.sortedBy { it.maturityDate }
-        else -> bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }
-    }
+    val sorted = bonds.sortedWith(compareBy<Bond> { it.purchaseLots.minOf { lot -> lot.purchaseDate } }.thenBy { it.name.lowercase(Locale.ROOT) })
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             SectionTitle("Compare bonds", "${bonds.size} SAVED")
@@ -305,20 +335,10 @@ fun BondWiseApp() {
                 FilterChip(selected = false, onClick = { compareMode = "Quick compare" }, label = { Text("Quick compare") })
             }
         }
-        item {
-            CardBox {
-                Text("Sort by", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(5.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("Estimated Net Return", "Coupon income", "Maturity").forEach { FilterChip(selected = rank == it, onClick = { onRank(it) }, label = { Text(it, fontSize = 9.sp) }) }
-                }
-                Text("Sorting highlights one measure; it does not decide which bond suits you.", fontSize = 11.sp, color = Muted)
-            }
-        }
         if (sorted.isEmpty()) {
             item { CardBox { Text("No bonds saved yet", fontWeight = FontWeight.Bold); Text("Add a bond to see its estimated yield and coupon schedule here.", color = Muted, fontSize = 12.sp); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(sorted) { bond -> BondCard(bond, isTop = bond == sorted.firstOrNull(), onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
+            items(sorted) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add a bond") } }
         }
     }
@@ -451,8 +471,7 @@ fun BondWiseApp() {
 
 @Composable private fun Portfolio(bonds: List<Bond>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("My bonds", "SAVED ON DEVICE") }
-        item { CardBox { Text(if (bonds.size == 1) "1 Bond Saved" else "${bonds.size} Bonds Saved", fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your entries stay on this device.", color = Muted, fontSize = 12.sp); Text("Total annual coupon after tax: ${money(bonds.sumOf { it.annualNetCoupon })}", color = Muted, fontSize = 12.sp) } }
+        item { SectionTitle("My bonds") }
         if (bonds.isEmpty()) {
             item { CardBox { Text("Your bond list is empty", fontWeight = FontWeight.Bold); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
@@ -688,10 +707,7 @@ fun BondWiseApp() {
                 schedule.forEach { row ->
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column {
-                                Text(row.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text(daysRemaining(row.date), color = Muted, fontSize = 10.sp)
-                            }
+                            Text("${row.date.format(DisplayDateFormat)} · ${daysRemaining(row.date)}", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                             Text(if (row.principal > 0) "${money(row.principal)} principal" else "Coupon", color = Teal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                         if (row.grossCoupon > 0) {
@@ -714,7 +730,7 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
     val upcoming = bonds.flatMap { bond -> couponSchedule(bond).filter { it.grossCoupon > 0 }.map { ScheduledCoupon(bond, it) } }
         .sortedBy { it.cashflow.date }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("Coupons", "CHRONOLOGICAL") }
+        item { SectionTitle("Coupons") }
         if (upcoming.isEmpty()) {
             item { CardBox { Text("No scheduled coupons", fontWeight = FontWeight.Bold); Text("Add a bond to see its upcoming coupon payments here.", color = Muted, fontSize = 12.sp) } }
         } else {
@@ -723,8 +739,7 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(payment.bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(payment.cashflow.date.format(DisplayDateFormat), color = Muted, fontSize = 12.sp)
-                            Text(daysRemaining(payment.cashflow.date), color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${payment.cashflow.date.format(DisplayDateFormat)} · ${daysRemaining(payment.cashflow.date)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(money(payment.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -742,9 +757,9 @@ private fun daysRemaining(date: LocalDate): String {
     return when {
         days == 0L -> "Today"
         days == 1L -> "1 day"
-        days > 1L -> "$days days"
+        days > 1L -> String.format(Locale.US, "%,d days", days)
         days == -1L -> "1 day ago"
-        else -> "${-days} days ago"
+        else -> String.format(Locale.US, "%,d days ago", -days)
     }
 }
 
@@ -795,10 +810,10 @@ private fun daysRemaining(date: LocalDate): String {
     }
 }
 
-@Composable private fun SectionTitle(title: String, tag: String) {
+@Composable private fun SectionTitle(title: String, tag: String? = null) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
+        if (tag != null) Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
     }
 }
 
