@@ -268,13 +268,18 @@ fun BondWiseApp() {
             val nextCoupon = bonds.flatMap { bond -> couponSchedule(bond).filter { it.grossCoupon > 0 }.map { ScheduledCoupon(bond, it) } }.minByOrNull { it.cashflow.date }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
-                        MetricCard("Face value held", money(bonds.sumOf { it.totalFaceValue }), Modifier.weight(1f))
+                    CardBox {
+                        Text("Face value held", color = Muted, fontSize = 12.sp)
+                        Text(money(bonds.sumOf { it.totalFaceValue }), color = Teal, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                        Spacer(Modifier.height(7.dp))
+                        Spacer(Modifier.fillMaxWidth().height(1.dp).background(Line))
+                        Spacer(Modifier.height(7.dp))
+                        Text("Annual net coupons · after tax", color = Muted, fontSize = 12.sp)
+                        Text(money(bonds.sumOf { it.annualNetCoupon }), color = Teal, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
                         MetricCard("Total purchase price", money(bonds.sumOf { it.totalCleanPrice }), Modifier.weight(1f))
-                        MetricCard("Annual net coupons", money(bonds.sumOf { it.annualNetCoupon }), Modifier.weight(1f))
                     }
                 }
             }
@@ -649,19 +654,15 @@ fun BondWiseApp() {
                 Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                  Column(Modifier.weight(1f)) {
-                    if (bond.purchaseLots.size == 1) {
-                    val lot = bond.purchaseLots.first()
-                    Text(if (lot.purchaseDateConfirmed) "Purchased ${lot.purchaseDate.format(DisplayDateFormat)}" else "Purchase date needs review · Edit bond", color = if (lot.purchaseDateConfirmed) Muted else PremiumRed, fontSize = 10.sp)
-                    } else {
-                    Text("${bond.purchaseLots.size} purchases · ${bond.purchaseLots.minOf { it.purchaseDate }.format(DisplayDateFormat)} to ${bond.purchaseLots.maxOf { it.purchaseDate }.format(DisplayDateFormat)}", color = Muted, fontSize = 10.sp)
-                    }
-                  }
-                  Column(Modifier.weight(1f)) {
-                    Text("Next coupon ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 10.sp)
-                  }
+                val purchaseDates = bond.purchaseLots.map { it.purchaseDate }.distinct().sorted()
+                val hasUnconfirmedPurchaseDate = bond.purchaseLots.any { !it.purchaseDateConfirmed }
+                val purchaseDateText = when {
+                    hasUnconfirmedPurchaseDate -> "Purchase date needs review · Edit bond"
+                    purchaseDates.size == 1 -> "Purchase date: ${purchaseDates.first().format(DisplayDateFormat)}"
+                    else -> "Purchase dates: ${purchaseDates.first().format(DisplayDateFormat)} – ${purchaseDates.last().format(DisplayDateFormat)}"
                 }
+                Text(purchaseDateText, color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted, fontSize = 10.sp)
+                Text("Next coupon date: ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 10.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("${estimatedReturn(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
