@@ -41,7 +41,8 @@ private val Canvas = Color(0xFFF3F6FA)
 private val Ink = Color(0xFF172B4D)
 private val Muted = Color(0xFF6B7B90)
 private val Line = Color(0xFFE0E7EF)
-private val DateFormat = DateTimeFormatter.ISO_LOCAL_DATE
+private val DisplayDateFormat = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH)
+private val StorageDateFormat = DateTimeFormatter.ISO_LOCAL_DATE
 private const val PREFS = "bondwise_local"
 private const val BONDS_KEY = "saved_bonds"
 
@@ -267,7 +268,7 @@ fun BondWiseApp() {
                     CompareResultRow("Estimated gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
                     CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
                     CompareResultRow("Net current yield", "${firstBond.netCurrentYield.fmt()}%", "${secondBond.netCurrentYield.fmt()}%")
-                    CompareResultRow("Maturity", firstBond.maturityDate.format(DateFormat), secondBond.maturityDate.format(DateFormat))
+                    CompareResultRow("Maturity", firstBond.maturityDate.format(DisplayDateFormat), secondBond.maturityDate.format(DisplayDateFormat))
                     Spacer(Modifier.height(8.dp))
                     val aYtm = estimatedYtm(firstBond, true)
                     val bYtm = estimatedYtm(secondBond, true)
@@ -410,7 +411,7 @@ fun BondWiseApp() {
         DatePickerDialog(context, { _, year, month, day -> onDate(LocalDate.of(year, month + 1, day)) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
     }) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column { Text(label, fontSize = 10.sp, color = Muted); Text(date.format(DateFormat), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink) }
+            Column { Text(label, fontSize = 10.sp, color = Muted); Text(date.format(DisplayDateFormat), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink) }
             Text("Choose date", fontSize = 11.sp, color = Teal, fontWeight = FontWeight.Bold)
         }
     }
@@ -459,8 +460,8 @@ fun BondWiseApp() {
             Column(Modifier.weight(1f)) {
                 Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DateFormat)}", color = Muted, fontSize = 11.sp)
-                Text("Next coupon ${bond.nextCouponDate.format(DateFormat)}", color = Muted, fontSize = 11.sp)
+                Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
+                Text("Next coupon ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("${estimatedYtm(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
@@ -492,11 +493,11 @@ fun BondWiseApp() {
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(bond.name, fontWeight = FontWeight.Bold)
-                Text("Coupon dates from ${bond.nextCouponDate.format(DateFormat)} through maturity. Tax is calculated on coupon interest; principal is returned at maturity.", fontSize = 11.sp, color = Muted)
+                Text("Coupon dates from ${bond.nextCouponDate.format(DisplayDateFormat)} through maturity. Tax is calculated on coupon interest; principal is returned at maturity.", fontSize = 11.sp, color = Muted)
                 schedule.forEach { row ->
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(row.date.format(DateFormat), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(row.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Text(if (row.principal > 0) "${money(row.principal)} principal" else "Coupon", color = Teal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                         if (row.grossCoupon > 0) {
@@ -588,7 +589,7 @@ private fun loadBonds(context: android.content.Context): List<Bond> = try {
         Bond(
             id = item.getString("id"), name = item.getString("name"), faceValue = item.getDouble("face"),
             couponRate = item.getDouble("coupon"), cleanPrice = item.getDouble("price"),
-            maturityDate = LocalDate.parse(item.getString("maturity")), nextCouponDate = LocalDate.parse(item.getString("nextCoupon")),
+            maturityDate = LocalDate.parse(item.getString("maturity"), StorageDateFormat), nextCouponDate = LocalDate.parse(item.getString("nextCoupon"), StorageDateFormat),
             frequency = item.getInt("frequency"), taxRate = item.getDouble("tax")
         )
     }
@@ -599,7 +600,7 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
     bonds.forEach { bond ->
         array.put(JSONObject().apply {
             put("id", bond.id); put("name", bond.name); put("face", bond.faceValue); put("coupon", bond.couponRate)
-            put("price", bond.cleanPrice); put("maturity", bond.maturityDate.format(DateFormat)); put("nextCoupon", bond.nextCouponDate.format(DateFormat))
+            put("price", bond.cleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
             put("frequency", bond.frequency); put("tax", bond.taxRate)
         })
     }
