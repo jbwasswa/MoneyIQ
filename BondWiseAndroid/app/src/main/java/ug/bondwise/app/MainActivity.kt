@@ -37,6 +37,7 @@ import org.json.JSONObject
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.math.BigDecimal
 import java.util.Locale
 import java.util.UUID
@@ -154,7 +155,7 @@ data class PurchaseLotForm(
 fun BondWiseApp() {
     val context = LocalContext.current
     val bonds = remember { mutableStateListOf<Bond>().apply { addAll(loadBonds(context)) } }
-    val pages = listOf("Overview", "Compare", "Calculator", "My bonds")
+    val pages = listOf("Overview", "Compare", "Calculator", "Coupons", "My bonds")
     var page by remember { mutableStateOf("Overview") }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
     val scope = rememberCoroutineScope()
@@ -165,6 +166,8 @@ fun BondWiseApp() {
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
     var lotsBond by remember { mutableStateOf<Bond?>(null) }
     var purchaseBond by remember { mutableStateOf<Bond?>(null) }
+    var bondPendingDeletion by remember { mutableStateOf<Bond?>(null) }
+    var purchasePendingDeletion by remember { mutableStateOf<Pair<Bond, PurchaseLot>?>(null) }
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { settledPage ->
@@ -199,7 +202,7 @@ fun BondWiseApp() {
                                 val target = pages.indexOf(item)
                                 if (target >= 0) scope.launch { pagerState.scrollToPage(target) }
                             },
-                            icon = { Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; else -> "▤" }, fontSize = 18.sp) },
+                            icon = { Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, fontSize = 18.sp) },
                             label = { Text(item) }
                         )
                     }
@@ -211,9 +214,10 @@ fun BondWiseApp() {
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
                         "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.scrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
-                        "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond, { lotsBond = it }, { purchaseBond = it })
+                        "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
                         "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
-                        else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, ::removeBond, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
+                        "Coupons" -> Coupons(bonds)
+                        else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
                     }
                 }
             }
@@ -226,8 +230,10 @@ fun BondWiseApp() {
         }) }
         scheduledBond?.let { ScheduleDialog(it, onDismiss = { scheduledBond = null }) }
         if (showHelp) HelpDialog(onDismiss = { showHelp = false })
-        lotsBond?.let { bond -> PurchaseLotsDialog(bond, onDismiss = { lotsBond = null }, onAdd = { lotsBond = null; purchaseBond = bond }, onRemove = { lot -> removePurchase(bond.id, lot.id) }) }
+        lotsBond?.let { bond -> PurchaseLotsDialog(bond, onDismiss = { lotsBond = null }, onAdd = { lotsBond = null; purchaseBond = bond }, onRemove = { lot -> purchasePendingDeletion = bond to lot }) }
         purchaseBond?.let { bond -> AddPurchaseDialog(bond, onDismiss = { purchaseBond = null }, onAdd = { lot -> addPurchase(bond.id, lot); purchaseBond = null }) }
+        bondPendingDeletion?.let { bond -> ConfirmDeleteDialog("Delete bond?", "${bond.name} and all its purchase records will be permanently removed.", onDismiss = { bondPendingDeletion = null }, onConfirm = { removeBond(bond); bondPendingDeletion = null }) }
+        purchasePendingDeletion?.let { (bond, lot) -> ConfirmDeleteDialog("Delete purchase?", "This purchase record (${money(lot.cleanPrice)}) will be permanently removed from ${bond.name}.", onDismiss = { purchasePendingDeletion = null }, onConfirm = { removePurchase(bond.id, lot.id); purchasePendingDeletion = null; lotsBond = bonds.firstOrNull { it.id == bond.id } }) }
     }
 }
 
@@ -545,10 +551,10 @@ fun BondWiseApp() {
                     }
                 }
                 Text("The app treats purchases made on a coupon date as eligible for that date’s payment. Confirm entitlement and settlement details against your trade confirmation.", color = Muted, fontSize = 10.sp)
-                OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+ Add another purchase") }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+        confirmButton = { Button(onClick = onAdd, shape = RoundedCornerShape(10.dp)) { Text("+ Add another purchase") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Done") } }
     )
 }
 
@@ -624,13 +630,19 @@ fun BondWiseApp() {
                 Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
-                if (bond.purchaseLots.size == 1) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                  Column(Modifier.weight(1f)) {
+                    if (bond.purchaseLots.size == 1) {
                     val lot = bond.purchaseLots.first()
-                    Text(if (lot.purchaseDateConfirmed) "Purchased ${lot.purchaseDate.format(DisplayDateFormat)}" else "Purchase date needs review · Edit bond", color = if (lot.purchaseDateConfirmed) Muted else PremiumRed, fontSize = 11.sp)
-                } else {
-                    Text("${bond.purchaseLots.size} purchases · ${bond.purchaseLots.minOf { it.purchaseDate }.format(DisplayDateFormat)} to ${bond.purchaseLots.maxOf { it.purchaseDate }.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
+                    Text(if (lot.purchaseDateConfirmed) "Purchased ${lot.purchaseDate.format(DisplayDateFormat)}" else "Purchase date needs review · Edit bond", color = if (lot.purchaseDateConfirmed) Muted else PremiumRed, fontSize = 10.sp)
+                    } else {
+                    Text("${bond.purchaseLots.size} purchases · ${bond.purchaseLots.minOf { it.purchaseDate }.format(DisplayDateFormat)} to ${bond.purchaseLots.maxOf { it.purchaseDate }.format(DisplayDateFormat)}", color = Muted, fontSize = 10.sp)
+                    }
+                  }
+                  Column(Modifier.weight(1f)) {
+                    Text("Next coupon ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 10.sp)
+                  }
                 }
-                Text("Next coupon ${bond.nextCouponDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("${estimatedReturn(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
@@ -653,7 +665,7 @@ fun BondWiseApp() {
         if (onLots != null || onAddPurchase != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 if (onLots != null) TextButton(onClick = onLots, modifier = Modifier.weight(1f)) { Text("Purchases (${bond.purchaseLots.size})") }
-                if (onAddPurchase != null) OutlinedButton(onClick = onAddPurchase, modifier = Modifier.weight(1f)) { Text("+ Add purchase") }
+                if (onAddPurchase != null) Button(onClick = onAddPurchase, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) { Text("+ Add purchase") }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -676,7 +688,10 @@ fun BondWiseApp() {
                 schedule.forEach { row ->
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(row.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Column {
+                                Text(row.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(daysRemaining(row.date), color = Muted, fontSize = 10.sp)
+                            }
                             Text(if (row.principal > 0) "${money(row.principal)} principal" else "Coupon", color = Teal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                         if (row.grossCoupon > 0) {
@@ -690,6 +705,56 @@ fun BondWiseApp() {
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
+}
+
+private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
+
+@Composable private fun Coupons(bonds: List<Bond>) {
+    val upcoming = bonds.flatMap { bond -> couponSchedule(bond).filter { it.grossCoupon > 0 }.map { ScheduledCoupon(bond, it) } }
+        .sortedBy { it.cashflow.date }
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { SectionTitle("Coupons", "CHRONOLOGICAL") }
+        if (upcoming.isEmpty()) {
+            item { CardBox { Text("No scheduled coupons", fontWeight = FontWeight.Bold); Text("Add a bond to see its upcoming coupon payments here.", color = Muted, fontSize = 12.sp) } }
+        } else {
+            items(upcoming) { payment ->
+                CardBox {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f)) {
+                            Text(payment.bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(payment.cashflow.date.format(DisplayDateFormat), color = Muted, fontSize = 12.sp)
+                            Text(daysRemaining(payment.cashflow.date), color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(money(payment.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Net coupon", color = Muted, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun daysRemaining(date: LocalDate): String {
+    val days = ChronoUnit.DAYS.between(LocalDate.now(), date)
+    return when {
+        days == 0L -> "Today"
+        days == 1L -> "1 day"
+        days > 1L -> "$days days"
+        days == -1L -> "1 day ago"
+        else -> "${-days} days ago"
+    }
+}
+
+@Composable private fun ConfirmDeleteDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Delete", color = PremiumRed) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
