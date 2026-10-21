@@ -192,13 +192,27 @@ fun BondWiseApp() {
     bonds: List<Bond>, rank: String, onRank: (String) -> Unit, onAdd: () -> Unit,
     onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit
 ) {
+    var compareMode by remember { mutableStateOf("Saved") }
+    var firstForm by remember { mutableStateOf(BondForm(name = "Bond A")) }
+    var secondForm by remember { mutableStateOf(BondForm(name = "Bond B")) }
+    if (compareMode == "Quick compare") {
+        QuickCompare(firstForm, { firstForm = it }, secondForm, { secondForm = it }, onSavedBonds = { compareMode = "Saved" })
+        return
+    }
     val sorted = when (rank) {
         "Coupon income" -> bonds.sortedByDescending { it.annualNetCoupon }
         "Maturity" -> bonds.sortedBy { it.maturityDate }
         else -> bonds.sortedByDescending { estimatedYtm(it, true) ?: Double.NEGATIVE_INFINITY }
     }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("Compare bonds", "${bonds.size} SAVED") }
+        item {
+            SectionTitle("Compare bonds", "${bonds.size} SAVED")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = true, onClick = { compareMode = "Saved" }, label = { Text("Saved bonds") })
+                FilterChip(selected = false, onClick = { compareMode = "Quick compare" }, label = { Text("Quick compare") })
+            }
+        }
         item {
             CardBox {
                 Text("Sort by", fontWeight = FontWeight.Bold)
@@ -216,6 +230,63 @@ fun BondWiseApp() {
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add a bond") } }
         }
         item { TaxNotice() }
+    }
+}
+
+@Composable private fun QuickCompare(
+    first: BondForm, onFirst: (BondForm) -> Unit,
+    second: BondForm, onSecond: (BondForm) -> Unit,
+    onSavedBonds: () -> Unit
+) {
+    val firstBond = first.toBond()
+    val secondBond = second.toBond()
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            SectionTitle("Quick compare", "NOT SAVED")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = false, onClick = onSavedBonds, label = { Text("Saved bonds") })
+                FilterChip(selected = true, onClick = {}, label = { Text("Quick compare") })
+            }
+            Text("Enter two bonds to compare their estimated yields and coupon income. These entries stay here and are not added to My bonds.", color = Muted, fontSize = 12.sp)
+        }
+        item { Text("Bond A", color = Teal, fontWeight = FontWeight.Bold); BondFields(first, onFirst) }
+        item { Text("Bond B", color = Teal, fontWeight = FontWeight.Bold); BondFields(second, onSecond) }
+        if (firstBond != null && secondBond != null) {
+            item {
+                CardBox {
+                    Text("Side-by-side results", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    CompareResultRow("Estimated net YTM", "${estimatedYtm(firstBond, true)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, true)?.fmt() ?: "—"}%")
+                    CompareResultRow("Estimated gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
+                    CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
+                    CompareResultRow("Net current yield", "${firstBond.netCurrentYield.fmt()}%", "${secondBond.netCurrentYield.fmt()}%")
+                    CompareResultRow("Maturity", firstBond.maturityDate.format(DateFormat), secondBond.maturityDate.format(DateFormat))
+                    Spacer(Modifier.height(8.dp))
+                    val aYtm = estimatedYtm(firstBond, true)
+                    val bYtm = estimatedYtm(secondBond, true)
+                    val lead = when {
+                        aYtm == null || bYtm == null -> "YTM cannot be estimated for one or both entries with these inputs."
+                        aYtm > bYtm -> "${firstBond.name} has the higher estimated net YTM."
+                        bYtm > aYtm -> "${secondBond.name} has the higher estimated net YTM."
+                        else -> "Both have the same estimated net YTM."
+                    }
+                    Text(lead, color = Teal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("This compares entered figures only. It does not include fees, accrued interest, or market convention adjustments.", color = Muted, fontSize = 10.sp)
+                }
+            }
+        } else {
+            item { CardBox { Text("Complete both bond entries to see the comparison.", color = Muted, fontSize = 12.sp) } }
+        }
+        item { TaxNotice() }
+    }
+}
+
+@Composable private fun CompareResultRow(label: String, first: String, second: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1.2f), color = Muted, fontSize = 11.sp)
+        Text(first, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+        Text(second, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
     }
 }
 
