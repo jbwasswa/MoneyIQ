@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,6 +36,7 @@ import org.json.JSONObject
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.math.BigDecimal
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.pow
@@ -116,12 +119,22 @@ data class BondForm(
 fun BondWiseApp() {
     val context = LocalContext.current
     val bonds = remember { mutableStateListOf<Bond>().apply { addAll(loadBonds(context)) } }
+    val pages = listOf("Overview", "Compare", "Calculator", "My bonds")
     var page by remember { mutableStateOf("Overview") }
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
     var rank by remember { mutableStateOf("Estimated Net YTM") }
     var showAdd by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
+
+    LaunchedEffect(page) {
+        val target = pages.indexOf(page).coerceAtLeast(0)
+        if (pagerState.currentPage != target) pagerState.animateScrollToPage(target)
+    }
+    LaunchedEffect(pagerState.currentPage) {
+        page = pages[pagerState.currentPage]
+    }
 
     fun save() = persistBonds(context, bonds)
     fun addBond(bond: Bond) { bonds.add(bond); save() }
@@ -133,7 +146,7 @@ fun BondWiseApp() {
             containerColor = Canvas,
             bottomBar = {
                 NavigationBar(containerColor = Color.White) {
-                    listOf("Overview", "Compare", "Calculator", "My bonds").forEach { item ->
+                    pages.forEach { item ->
                         NavigationBarItem(
                             selected = page == item,
                             onClick = { page = item },
@@ -146,11 +159,13 @@ fun BondWiseApp() {
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad)) {
                 Header(onHelp = { showHelp = true })
-                when (page) {
-                    "Overview" -> Overview(bonds, onCompare = { page = "Compare" }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it })
-                    "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond)
-                    "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
-                    else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, ::removeBond, { showAdd = true })
+                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
+                    when (pages[pageIndex]) {
+                        "Overview" -> Overview(bonds, onCompare = { page = "Compare" }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it })
+                        "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond)
+                        "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
+                        else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, ::removeBond, { showAdd = true })
+                    }
                 }
             }
         }
@@ -660,16 +675,15 @@ private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this
 private fun money(value: Double) = "UGX " + String.format(Locale.US, "%,.0f", value)
 private fun premiumDiscount(bond: Bond): PricePosition {
     val difference = bond.cleanPrice - bond.faceValue
-    if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", "UGX 0 (0.00%)", Muted)
-    val percentage = kotlin.math.abs(difference) / bond.faceValue * 100.0
+    if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", "UGX 0", Muted)
     val label = if (difference > 0) "Premium" else "Discount"
     val color = if (difference > 0) PremiumRed else DiscountGreen
-    return PricePosition(label, "${money(kotlin.math.abs(difference))} (${percentage.fmt()}%)", color)
+    return PricePosition(label, money(kotlin.math.abs(difference)), color)
 }
 
 private fun String.toAmountOrNull(): Double? = replace(",", "").trim().toDoubleOrNull()
 
-private fun Double.grouped(): String = toString().groupedInput()
+private fun Double.grouped(): String = BigDecimal.valueOf(this).stripTrailingZeros().toPlainString().groupedInput()
 
 private fun String.groupedInput(): String {
     val cleaned = filter { it.isDigit() || it == '.' }
