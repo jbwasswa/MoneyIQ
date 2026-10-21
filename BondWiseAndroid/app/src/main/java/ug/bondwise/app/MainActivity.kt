@@ -227,7 +227,11 @@ fun BondWiseApp() {
             }
         }
         if (showAdd) AddBondDialog(onDismiss = { showAdd = false }, onAdd = { addBond(it); showAdd = false })
-        editingBond?.let { bond -> EditBondDialog(bond, onDismiss = { editingBond = null }, onSave = { updated -> updateBond(updated.copy(lots = bond.purchaseLots, faceValue = bond.totalFaceValue, cleanPrice = bond.totalCleanPrice)); editingBond = null }) }
+        editingBond?.let { bond -> EditBondDialog(bond, onDismiss = { editingBond = null }, onSave = { updated ->
+            val updatedLots = if (bond.purchaseLots.size == 1) updated.purchaseLots.map { it.copy(id = bond.purchaseLots.first().id) } else bond.purchaseLots
+            updateBond(updated.copy(lots = updatedLots, faceValue = updatedLots.sumOf { it.faceValue }, cleanPrice = updatedLots.sumOf { it.cleanPrice }))
+            editingBond = null
+        }) }
         scheduledBond?.let { ScheduleDialog(it, onDismiss = { scheduledBond = null }) }
         if (showHelp) HelpDialog(onDismiss = { showHelp = false })
         lotsBond?.let { bond -> PurchaseLotsDialog(bond, onDismiss = { lotsBond = null }, onAdd = { lotsBond = null; purchaseBond = bond }, onRemove = { lot -> removePurchase(bond.id, lot.id) }) }
@@ -783,12 +787,27 @@ private fun estimatedReturn(bond: Bond, afterTax: Boolean): Double? {
     fun npv(rate: Double): Double = datedFlows.sumOf { (date, amount) ->
         amount / (1.0 + rate).pow(java.time.temporal.ChronoUnit.DAYS.between(origin, date) / 365.25)
     }
-    var low = -0.99
-    var high = 5.0
-    if (npv(low) * npv(high) > 0) return null
+    val brackets = mutableListOf<Pair<Double, Double>>()
+    var previousRate = -0.99
+    var previousNpv = npv(previousRate)
+    val scanSteps = 800
+    for (step in 1..scanSteps) {
+        val rate = -0.99 + (5.99 * step / scanSteps)
+        val value = npv(rate)
+        if (previousNpv == 0.0) brackets.add(previousRate to previousRate)
+        else if (value == 0.0 || (previousNpv < 0.0) != (value < 0.0)) brackets.add(previousRate to rate)
+        previousRate = rate
+        previousNpv = value
+    }
+    if (previousNpv == 0.0) brackets.add(previousRate to previousRate)
+    if (brackets.isEmpty()) return null
+    var (low, high) = brackets.minBy { kotlin.math.abs((it.first + it.second) / 2.0 - 0.10) }
+    if (low == high) return low * 100.0
+    var lowNpv = npv(low)
     repeat(180) {
         val mid = (low + high) / 2.0
-        if (npv(mid) > 0) low = mid else high = mid
+        val midNpv = npv(mid)
+        if ((lowNpv < 0.0) == (midNpv < 0.0)) { low = mid; lowNpv = midNpv } else high = mid
     }
     return ((low + high) / 2.0) * 100.0
 }
