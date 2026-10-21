@@ -152,12 +152,16 @@ fun BondWiseApp() {
 }
 
 @Composable private fun Header() {
-    Column(Modifier.fillMaxWidth().background(Navy, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)).padding(horizontal = 20.dp, vertical = 18.dp)) {
-        Text("▥  BondWise  UG", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(14.dp))
-        Text("BOND INVESTMENT ASSISTANT", color = Color(0xFFBCD9E5), fontSize = 10.sp, letterSpacing = 1.5.sp)
-        Text("Make every bond\ndecision count.", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold, lineHeight = 30.sp)
-        Text("Compare yields, after-tax income and coupon dates.", color = Color(0xFFD5E4EF), fontSize = 13.sp)
+    Row(
+        Modifier.fillMaxWidth().background(Navy, RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)).padding(horizontal = 20.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("▥", color = Color(0xFF6DE0D1), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text("BondWise UG", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Compare bonds and coupon income", color = Color(0xFFD5E4EF), fontSize = 11.sp)
+        }
     }
 }
 
@@ -257,6 +261,8 @@ fun BondWiseApp() {
                 CardBox {
                     Text("Side-by-side results", fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
+                    CompareResultHeader(firstBond.name, secondBond.name)
+                    CompareResultRow("Coupon rate", "${firstBond.couponRate.fmt()}%", "${secondBond.couponRate.fmt()}%")
                     CompareResultRow("Estimated net YTM", "${estimatedYtm(firstBond, true)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, true)?.fmt() ?: "—"}%")
                     CompareResultRow("Estimated gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
                     CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
@@ -279,6 +285,20 @@ fun BondWiseApp() {
             item { CardBox { Text("Complete both bond entries to see the comparison.", color = Muted, fontSize = 12.sp) } }
         }
         item { TaxNotice() }
+    }
+}
+
+@Composable private fun CompareResultHeader(firstName: String, secondName: String) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.weight(1.2f))
+        Column(Modifier.weight(1f)) {
+            Text("BOND A", color = Teal, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            Text(firstName, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 2)
+        }
+        Column(Modifier.weight(1f)) {
+            Text("BOND B", color = Teal, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            Text(secondName, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 2)
+        }
     }
 }
 
