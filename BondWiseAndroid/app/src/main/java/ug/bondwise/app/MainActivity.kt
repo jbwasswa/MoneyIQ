@@ -154,7 +154,7 @@ fun BondWiseApp() {
 
 @Composable private fun Header() {
     Row(
-        Modifier.fillMaxWidth().background(Navy, RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)).padding(horizontal = 20.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().background(Navy).padding(horizontal = 20.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("▥", color = Color(0xFF6DE0D1), fontSize = 23.sp, fontWeight = FontWeight.Bold)
@@ -264,6 +264,9 @@ fun BondWiseApp() {
                     Spacer(Modifier.height(8.dp))
                     CompareResultHeader(firstBond.name, secondBond.name)
                     CompareResultRow("Coupon rate", "${firstBond.couponRate.fmt()}%", "${secondBond.couponRate.fmt()}%")
+                    CompareResultRow("Face value", money(firstBond.faceValue), money(secondBond.faceValue))
+                    CompareResultRow("Purchase price", money(firstBond.cleanPrice), money(secondBond.cleanPrice))
+                    CompareResultRow("Premium / discount", premiumDiscount(firstBond), premiumDiscount(secondBond))
                     CompareResultRow("Estimated net YTM", "${estimatedYtm(firstBond, true)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, true)?.fmt() ?: "—"}%")
                     CompareResultRow("Estimated gross YTM", "${estimatedYtm(firstBond, false)?.fmt() ?: "—"}%", "${estimatedYtm(secondBond, false)?.fmt() ?: "—"}%")
                     CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
@@ -361,9 +364,9 @@ fun BondWiseApp() {
 @Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit) {
     CardBox {
         TextFieldBlock("Bond name", form.name, { onChange(form.copy(name = it)) }, KeyboardType.Text)
-        TextFieldBlock("Face value (UGX)", form.face, { onChange(form.copy(face = it)) }, KeyboardType.Decimal, groupThousands = true)
+        TextFieldBlock("Face value (UGX)", form.face, { onChange(form.copy(face = it)) }, KeyboardType.Number, groupThousands = true)
         TextFieldBlock("Annual coupon rate (%)", form.coupon, { onChange(form.copy(coupon = it)) }, KeyboardType.Decimal)
-        TextFieldBlock("Purchase price, excluding accrued interest (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.Decimal, groupThousands = true)
+        TextFieldBlock("Purchase price, excluding accrued interest (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.Number, groupThousands = true)
         Text("Coupon frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             listOf(2 to "Semi-annual", 1 to "Annual").forEach { (n, label) ->
@@ -470,8 +473,12 @@ fun BondWiseApp() {
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricCard("Market price", moneyShort(bond.cleanPrice), Modifier.weight(1f))
-            MetricCard("Net annual coupon", moneyShort(bond.annualNetCoupon), Modifier.weight(1f))
+            MetricCard("Purchase price", money(bond.cleanPrice), Modifier.weight(1f))
+            MetricCard("Face value", money(bond.faceValue), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
+            MetricCard("Net annual coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
+            MetricCard("Premium / discount", premiumDiscount(bond), Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
             MetricCard("Gross YTM", "${estimatedYtm(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
@@ -609,7 +616,13 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
 private fun money(value: Double) = "UGX " + String.format(Locale.US, "%,.0f", value)
-private fun moneyShort(value: Double) = money(value)
+private fun premiumDiscount(bond: Bond): String {
+    val difference = bond.cleanPrice - bond.faceValue
+    if (kotlin.math.abs(difference) < 0.005) return "At face value"
+    val percentage = kotlin.math.abs(difference) / bond.faceValue * 100.0
+    val label = if (difference > 0) "Premium" else "Discount"
+    return "$label ${money(kotlin.math.abs(difference))} (${percentage.fmt()}%)"
+}
 
 private fun String.toAmountOrNull(): Double? = replace(",", "").trim().toDoubleOrNull()
 
