@@ -1,0 +1,35 @@
+name: Build BondWise APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [bondwise-apk]
+    paths:
+      - 'BondWiseAndroid/**'
+      - '.github/workflows/bondwise-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build debug APK
+        working-directory: BondWiseAndroid
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Publish APK for download
+        uses: actions/upload-artifact@v4
+        with:
+          name: BondWise-debug-apk
+          path: BondWiseAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
