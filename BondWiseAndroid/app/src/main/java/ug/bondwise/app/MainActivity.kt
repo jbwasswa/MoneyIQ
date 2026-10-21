@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +40,7 @@ import java.time.format.DateTimeFormatter
 import java.math.BigDecimal
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.launch
 import kotlin.math.pow
 
 private val Navy = Color(0xFF17365D)
@@ -122,18 +124,17 @@ fun BondWiseApp() {
     val pages = listOf("Overview", "Compare", "Calculator", "My bonds")
     var page by remember { mutableStateOf("Overview") }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
+    val scope = rememberCoroutineScope()
     var rank by remember { mutableStateOf("Estimated Net YTM") }
     var showAdd by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
 
-    LaunchedEffect(page) {
-        val target = pages.indexOf(page).coerceAtLeast(0)
-        if (pagerState.currentPage != target) pagerState.animateScrollToPage(target)
-    }
-    LaunchedEffect(pagerState.currentPage) {
-        page = pages[pagerState.currentPage]
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { settledPage ->
+            page = pages[settledPage]
+        }
     }
 
     fun save() = persistBonds(context, bonds)
@@ -149,7 +150,10 @@ fun BondWiseApp() {
                     pages.forEach { item ->
                         NavigationBarItem(
                             selected = page == item,
-                            onClick = { page = item },
+                            onClick = {
+                                val target = pages.indexOf(item)
+                                if (target >= 0) scope.launch { pagerState.scrollToPage(target) }
+                            },
                             icon = { Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; else -> "▤" }, fontSize = 18.sp) },
                             label = { Text(item) }
                         )
@@ -161,7 +165,7 @@ fun BondWiseApp() {
                 Header(onHelp = { showHelp = true })
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
-                        "Overview" -> Overview(bonds, onCompare = { page = "Compare" }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it })
+                        "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.scrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it })
                         "Compare" -> Compare(bonds, rank, { rank = it }, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, ::removeBond)
                         "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
                         else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, ::removeBond, { showAdd = true })
