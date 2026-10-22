@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
@@ -321,7 +322,6 @@ fun BondWiseApp() {
                             Column(Modifier.weight(1f)) {
                                 Text("Annual net coupons", color = Muted, fontSize = 10.sp)
                                 Text(money(bonds.sumOf { it.annualNetCoupon }), color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-                                Text("After tax", color = Muted, fontSize = 9.sp)
                             }
                         }
                     }
@@ -702,29 +702,27 @@ fun BondWiseApp() {
                 Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
-                val purchaseDates = bond.purchaseLots.map { it.purchaseDate }.distinct().sorted()
-                val hasUnconfirmedPurchaseDate = bond.purchaseLots.any { !it.purchaseDateConfirmed }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (purchaseDates.size == 1) "Purchase date" else "Purchase dates", color = Muted, fontSize = 9.sp)
-                        val purchaseDateText = when {
-                            hasUnconfirmedPurchaseDate -> "Needs review · Edit bond"
-                            purchaseDates.size == 1 -> purchaseDates.first().format(DisplayDateFormat)
-                            else -> "${purchaseDates.first().format(DisplayDateFormat)} – ${purchaseDates.last().format(DisplayDateFormat)}"
-                        }
-                        Text(purchaseDateText, color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted, fontSize = 9.sp)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text("Next coupon date", color = Muted, fontSize = 9.sp)
-                        Text(bond.nextCouponDate.format(DisplayDateFormat), color = Muted, fontSize = 9.sp)
-                    }
-                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("${estimatedReturn(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 Text(netReturnLabel(bond), fontSize = 10.sp, color = Muted)
             }
         }
+        val purchaseDates = bond.purchaseLots.map { it.purchaseDate }.distinct().sorted()
+        val hasUnconfirmedPurchaseDate = bond.purchaseLots.any { !it.purchaseDateConfirmed }
+        val purchaseDateText = when {
+            hasUnconfirmedPurchaseDate -> "Needs review · Edit bond"
+            purchaseDates.size == 1 -> purchaseDates.first().format(DisplayDateFormat)
+            else -> "${purchaseDates.first().format(DisplayDateFormat)} – ${purchaseDates.last().format(DisplayDateFormat)}"
+        }
+        Text(
+            "Purchase date: $purchaseDateText  ·  Next coupon: ${bond.nextCouponDate.format(DisplayDateFormat)}",
+            color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted,
+            fontSize = 9.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MetricCard("Purchase Price", money(bond.totalCleanPrice), Modifier.weight(1f))
