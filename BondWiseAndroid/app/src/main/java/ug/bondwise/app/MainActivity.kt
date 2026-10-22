@@ -57,6 +57,7 @@ private val DisplayDateFormat = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Local
 private val StorageDateFormat = DateTimeFormatter.ISO_LOCAL_DATE
 private const val PREFS = "bondwise_local"
 private const val BONDS_KEY = "saved_bonds"
+private const val COUPON_RECEIPTS_KEY = "coupon_receipts"
 private val PremiumRed = Color(0xFFB54747)
 private val DiscountGreen = Color(0xFF16835D)
 
@@ -109,6 +110,20 @@ data class Cashflow(
     val netCoupon: Double,
     val principal: Double
 )
+
+data class CouponReceipt(
+    val bondId: String,
+    val bondName: String,
+    val couponDate: LocalDate,
+    val faceBalanceAtCoupon: Double,
+    val estimatedNetAmount: Double,
+    val amountReceived: Double,
+    val receivedDate: LocalDate
+) {
+    val eventKey: String get() = couponEventKey(bondId, couponDate)
+}
+
+private fun couponEventKey(bondId: String, couponDate: LocalDate) = "$bondId|${couponDate.format(StorageDateFormat)}"
 
 data class PricePosition(val label: String, val detail: String, val color: Color)
 
@@ -181,6 +196,7 @@ private fun PurchaseLot.toForm() = PurchaseLotForm(
 fun BondWiseApp() {
     val context = LocalContext.current
     val bonds = remember { mutableStateListOf<Bond>().apply { addAll(loadBonds(context)) } }
+    val couponReceipts = remember { mutableStateListOf<CouponReceipt>().apply { addAll(loadCouponReceipts(context)) } }
     val pages = listOf("Overview", "Compare", "Calculator", "Coupons", "My bonds")
     var page by remember { mutableStateOf("Overview") }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
@@ -203,7 +219,17 @@ fun BondWiseApp() {
     }
 
     fun save() = persistBonds(context, bonds)
+    fun saveCouponReceipts() = persistCouponReceipts(context, couponReceipts)
     LaunchedEffect(Unit) { save() }
+    fun recordCouponReceipt(receipt: CouponReceipt) {
+        val index = couponReceipts.indexOfFirst { it.eventKey == receipt.eventKey }
+        if (index >= 0) couponReceipts[index] = receipt else couponReceipts.add(receipt)
+        saveCouponReceipts()
+    }
+    fun undoCouponReceipt(receipt: CouponReceipt) {
+        couponReceipts.removeAll { it.eventKey == receipt.eventKey }
+        saveCouponReceipts()
+    }
     fun addBond(bond: Bond) { bonds.add(bond); save() }
     fun removeBond(bond: Bond) { bonds.removeAll { it.id == bond.id }; save() }
     fun updateBond(bond: Bond) { val index = bonds.indexOfFirst { it.id == bond.id }; if (index >= 0) { bonds[index] = bond; save(); if (lotsBond?.id == bond.id) lotsBond = bond } }
@@ -262,11 +288,11 @@ fun BondWiseApp() {
                 Header(onHelp = { showHelp = true })
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
-                        "Overview" -> Overview(bonds, onCompare = { scope.launch { pagerState.animateScrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
-                        "Compare" -> Compare(bonds, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
+                        "Overview" -> Overview(bonds, couponReceipts, onCompare = { scope.launch { pagerState.animateScrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
+                        "Compare" -> Compare(bonds, couponReceipts, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
                         "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
-                        "Coupons" -> Coupons(bonds)
-                        else -> Portfolio(bonds, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
+                        "Coupons" -> Coupons(bonds, couponReceipts, onRecordReceipt = { recordCouponReceipt(it) }, onUndoReceipt = { undoCouponReceipt(it) })
+                        else -> Portfolio(bonds, couponReceipts, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
                     }
                 }
             }
@@ -309,7 +335,7 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun Overview(bonds: List<Bond>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
+@Composable private fun Overview(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionTitle("Portfolio overview", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
         if (bonds.isEmpty()) {
@@ -323,7 +349,10 @@ fun BondWiseApp() {
             }
         } else {
             val best = bonds.maxByOrNull { estimatedReturn(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
-            val nextCoupon = bonds.flatMap { bond -> couponSchedule(bond).filter { it.grossCoupon > 0 }.map { ScheduledCoupon(bond, it) } }.minByOrNull { it.cashflow.date }
+            val receivedEventKeys = couponReceipts.mapTo(mutableSetOf()) { it.eventKey }
+            val nextCoupon = bonds.flatMap { bond ->
+                couponSchedule(bond).filter { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receivedEventKeys }.map { ScheduledCoupon(bond, it) }
+            }.minByOrNull { it.cashflow.date }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     CardBox {
@@ -371,7 +400,7 @@ fun BondWiseApp() {
             }
             item { SectionTitle("Your bonds") }
             items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3), key = { it.id }) { bond ->
-                BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
+                BondCard(bond, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
             item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare bonds") } }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add another bond") } }
@@ -380,7 +409,7 @@ fun BondWiseApp() {
 }
 
 @Composable private fun Compare(
-    bonds: List<Bond>, onAdd: () -> Unit,
+    bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onAdd: () -> Unit,
     onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit,
     onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit
 ) {
@@ -404,7 +433,7 @@ fun BondWiseApp() {
         if (sorted.isEmpty()) {
             item { CardBox { Text("No bonds saved yet", fontWeight = FontWeight.Bold); Text("Add a bond to see its estimated yield and coupon schedule here.", color = Muted, fontSize = 12.sp); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(sorted, key = { it.id }) { bond -> BondCard(bond, collapsible = false, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
+            items(sorted, key = { it.id }) { bond -> BondCard(bond, collapsible = false, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add a bond") } }
         }
     }
@@ -535,13 +564,13 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun Portfolio(bonds: List<Bond>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
+@Composable private fun Portfolio(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("My bonds") }
         if (bonds.isEmpty()) {
             item { CardBox { Text("Your bond list is empty", fontWeight = FontWeight.Bold); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(bonds, key = { it.id }) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
+            items(bonds, key = { it.id }) { bond -> BondCard(bond, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+ Add a bond") } }
         }
     }
@@ -708,7 +737,7 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun BondCard(bond: Bond, isTop: Boolean = false, collapsible: Boolean = true, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?, onLots: (() -> Unit)? = null, onAddPurchase: (() -> Unit)? = null) {
+@Composable private fun BondCard(bond: Bond, isTop: Boolean = false, collapsible: Boolean = true, receipts: List<CouponReceipt> = emptyList(), onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?, onLots: (() -> Unit)? = null, onAddPurchase: (() -> Unit)? = null) {
     var expanded by remember(bond.id) { mutableStateOf(false) }
     val position = premiumDiscount(bond)
     CardBox {
@@ -719,6 +748,7 @@ fun BondWiseApp() {
             purchaseDates.size == 1 -> purchaseDates.first().format(DisplayDateFormat)
             else -> "${purchaseDates.first().format(DisplayDateFormat)} – ${purchaseDates.last().format(DisplayDateFormat)}"
         }
+        val nextCouponDate = nextUnreceivedCouponDate(bond, receipts)
         Column(
             Modifier.fillMaxWidth().then(if (collapsible) Modifier.clickable(onClickLabel = if (expanded) "Hide bond details" else "Show bond details") { expanded = !expanded } else Modifier)
         ) {
@@ -734,7 +764,7 @@ fun BondWiseApp() {
                 }
             }
             Text(
-                "Purchase date: $purchaseDateText  ·  Next coupon: ${bond.nextCouponDate.format(DisplayDateFormat)}",
+                "Purchase date: $purchaseDateText  ·  Next coupon: ${nextCouponDate?.format(DisplayDateFormat) ?: "—"}",
                 color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted,
                 fontSize = 9.sp,
                 maxLines = 1,
@@ -805,29 +835,167 @@ fun BondWiseApp() {
 
 private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
 
-@Composable private fun Coupons(bonds: List<Bond>) {
-    val upcoming = bonds.flatMap { bond -> couponSchedule(bond).filter { it.grossCoupon > 0 }.map { ScheduledCoupon(bond, it) } }
-        .sortedBy { it.cashflow.date }
+@Composable private fun Coupons(
+    bonds: List<Bond>,
+    receipts: List<CouponReceipt>,
+    onRecordReceipt: (CouponReceipt) -> Unit,
+    onUndoReceipt: (CouponReceipt) -> Unit
+) {
+    var showHistory by remember { mutableStateOf(false) }
+    var paymentToRecord by remember { mutableStateOf<ScheduledCoupon?>(null) }
+    var amountReceived by remember { mutableStateOf("") }
+    var receivedDate by remember { mutableStateOf(LocalDate.now()) }
+    var receiptError by remember { mutableStateOf(false) }
+    var receiptToUndo by remember { mutableStateOf<CouponReceipt?>(null) }
+    val receiptKeys = receipts.mapTo(mutableSetOf()) { it.eventKey }
+    val scheduled = bonds.flatMap { bond ->
+        couponSchedule(bond, bond.nextCouponDate)
+            .filter { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receiptKeys }
+            .map { ScheduledCoupon(bond, it) }
+    }.sortedBy { it.cashflow.date }
+    val history = receipts.sortedWith(compareByDescending<CouponReceipt> { it.receivedDate }.thenByDescending { it.couponDate })
+
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("Coupons") }
-        if (upcoming.isEmpty()) {
-            item { CardBox { Text("No scheduled coupons", fontWeight = FontWeight.Bold); Text("Add a bond to see its upcoming coupon payments here.", color = Muted, fontSize = 12.sp) } }
+        item {
+            SectionTitle("Coupons")
+            Spacer(Modifier.height(7.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") })
+                FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") })
+            }
+            Text("Each scheduled coupon is one payment for the eligible bond balance.", color = Muted, fontSize = 11.sp)
+        }
+        if (!showHistory && scheduled.isEmpty()) {
+            item {
+                CardBox {
+                    Text(if (bonds.isEmpty()) "No scheduled coupons" else "No unpaid coupons", fontWeight = FontWeight.Bold)
+                    Text(if (bonds.isEmpty()) "Add a bond to see upcoming coupon payments here." else "All scheduled coupon payments are recorded as received.", color = Muted, fontSize = 12.sp)
+                }
+            }
+        } else if (showHistory && history.isEmpty()) {
+            item { CardBox { Text("No received coupons yet", fontWeight = FontWeight.Bold); Text("Payments you confirm will appear here.", color = Muted, fontSize = 12.sp) } }
+        } else if (showHistory) {
+            items(history, key = { it.eventKey }) { receipt ->
+                CardBox {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f)) {
+                            Text(receipt.bondName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Coupon ${receipt.couponDate.format(DisplayDateFormat)} · Received ${receipt.receivedDate.format(DisplayDateFormat)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                        Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) {
+                            Text("Received", color = DiscountGreen, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                        }
+                    }
+                    Text("One payment · Combined face balance ${money(receipt.faceBalanceAtCoupon)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                        Column {
+                            Text("Net amount received", color = Muted, fontSize = 10.sp)
+                            Text(money(receipt.amountReceived), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        if (kotlin.math.abs(receipt.amountReceived - receipt.estimatedNetAmount) >= 0.5) {
+                            Text("Estimate ${money(receipt.estimatedNetAmount)}", color = Muted, fontSize = 9.sp)
+                        }
+                    }
+                    TextButton(onClick = { receiptToUndo = receipt }, modifier = Modifier.align(Alignment.End)) {
+                        Text("Undo received", color = PremiumRed, fontSize = 11.sp)
+                    }
+                }
+            }
         } else {
-            items(upcoming) { payment ->
+            items(scheduled, key = { couponEventKey(it.bond.id, it.cashflow.date) }) { payment ->
+                val dueDate = payment.cashflow.date
+                val due = !dueDate.isAfter(LocalDate.now())
+                val statusLabel = when {
+                    dueDate.isBefore(LocalDate.now()) -> "Past due"
+                    dueDate == LocalDate.now() -> "Today"
+                    else -> "Upcoming"
+                }
+                val statusColor = if (dueDate.isBefore(LocalDate.now())) PremiumRed else Teal
+                val faceBalance = faceBalanceAtCoupon(payment.bond, dueDate)
                 CardBox {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(payment.bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("${payment.cashflow.date.format(DisplayDateFormat)} · ${daysRemaining(payment.cashflow.date)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("${dueDate.format(DisplayDateFormat)} · ${daysRemaining(dueDate)}", color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                        Surface(color = statusColor.copy(alpha = 0.12f), shape = RoundedCornerShape(30.dp)) {
+                            Text(statusLabel, color = statusColor, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                        }
+                    }
+                    Text("One payment · Combined face balance ${money(faceBalance)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                        Column {
+                            Text("Estimated net payment", color = Muted, fontSize = 10.sp)
+                            Text(money(payment.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(money(payment.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Net coupon", color = Muted, fontSize = 10.sp)
+                            Text("Gross ${money(payment.cashflow.grossCoupon)}", color = Muted, fontSize = 9.sp)
+                            Text("Tax ${money(payment.cashflow.tax)}", color = Muted, fontSize = 9.sp)
                         }
+                    }
+                    if (due) {
+                        OutlinedButton(
+                            onClick = {
+                                paymentToRecord = payment
+                                amountReceived = payment.cashflow.netCoupon.grouped()
+                                receivedDate = LocalDate.now()
+                                receiptError = false
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) { Text("Mark as received") }
                     }
                 }
             }
         }
+    }
+
+    paymentToRecord?.let { payment ->
+        AlertDialog(
+            onDismissRequest = { paymentToRecord = null },
+            title = { Text("Confirm coupon received?") },
+            text = {
+                Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("${payment.bond.name} · ${payment.cashflow.date.format(DisplayDateFormat)}", color = Teal, fontWeight = FontWeight.Bold)
+                    Text("This records one payment using the combined face balance of ${money(faceBalanceAtCoupon(payment.bond, payment.cashflow.date))}.", color = Muted, fontSize = 11.sp)
+                    Text("Estimated net amount: ${money(payment.cashflow.netCoupon)}", fontSize = 11.sp)
+                    TextFieldBlock("Actual amount received (UGX)", amountReceived, { amountReceived = it; receiptError = false }, KeyboardType.NumberPassword, groupThousands = true)
+                    DateField("Date received", receivedDate) { receivedDate = it; receiptError = false }
+                    if (receiptError) Text("Enter a positive amount and a received date that is not in the future.", color = PremiumRed, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val amount = amountReceived.toAmountOrNull()
+                    if (amount == null || amount <= 0 || receivedDate.isAfter(LocalDate.now())) {
+                        receiptError = true
+                    } else {
+                        onRecordReceipt(CouponReceipt(
+                            bondId = payment.bond.id,
+                            bondName = payment.bond.name,
+                            couponDate = payment.cashflow.date,
+                            faceBalanceAtCoupon = faceBalanceAtCoupon(payment.bond, payment.cashflow.date),
+                            estimatedNetAmount = payment.cashflow.netCoupon,
+                            amountReceived = amount,
+                            receivedDate = receivedDate
+                        ))
+                        paymentToRecord = null
+                        showHistory = true
+                    }
+                }) { Text("Confirm received") }
+            },
+            dismissButton = { TextButton(onClick = { paymentToRecord = null }) { Text("Cancel") } }
+        )
+    }
+
+    receiptToUndo?.let { receipt ->
+        AlertDialog(
+            onDismissRequest = { receiptToUndo = null },
+            title = { Text("Undo coupon receipt?") },
+            text = { Text("This removes the recorded payment for ${receipt.bondName} on ${receipt.couponDate.format(DisplayDateFormat)}. If the bond is still saved, the coupon will return to Scheduled.") },
+            confirmButton = { TextButton(onClick = { onUndoReceipt(receipt); receiptToUndo = null; showHistory = false }) { Text("Undo receipt", color = PremiumRed) } },
+            dismissButton = { TextButton(onClick = { receiptToUndo = null }) { Text("Keep payment") } }
+        )
     }
 }
 
@@ -861,6 +1029,7 @@ private fun daysRemaining(date: LocalDate): String {
                 HelpSection("Tax", "The 10% tax value is an editable default, not a universal rate. Confirm the rate that applies to your bond and circumstances. BondWise applies the entered rate to coupon interest only, not principal repayment.")
                 HelpSection("Estimated return", "For one purchase lot, the estimate is based on that lot’s purchase price, purchase date, maturity and coupon tax rate. For multiple lots, BondWise calculates a combined annualized return (XIRR) using each dated purchase price, projected coupon payments and principal at maturity. It is not a live market valuation or guaranteed return.")
                 HelpSection("Multiple purchases", "Use one saved bond for all purchases of the same bond. Add each purchase with its own date, face value and total purchase price. The bond card totals the lots, while Purchases shows each lot and its premium or discount.")
+                HelpSection("Coupon tracking", "The Coupons tab lists one estimated payment per bond and coupon date, based on the combined face value of purchases dated on or before that coupon date. Confirm a payment only after you receive it; BondWise saves the actual net amount and receipt date. Unconfirmed past payments remain marked Past due.")
                 HelpSection("Purchase price", "Enter the total amount the bank charged for each purchase. Do not add accrued interest or fees separately; include the amount shown by the bank. The app does not apply market-specific day-count or settlement conventions.")
                 HelpSection("Premium or discount", "BondWise compares Purchase Price with Face Value. A price above face value is shown as a red premium; a price below face value is shown as a green discount.")
                 HelpSection("Compare bonds", "A higher estimated net return means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
@@ -921,6 +1090,16 @@ private fun couponSchedule(bond: Bond, fromDate: LocalDate = LocalDate.now()): L
         result.add(Cashflow(bond.maturityDate, 0.0, 0.0, 0.0, bond.totalFaceValue))
     }
     return result.sortedBy { it.date }
+}
+
+private fun faceBalanceAtCoupon(bond: Bond, couponDate: LocalDate): Double =
+    bond.purchaseLots.filter { !it.purchaseDate.isAfter(couponDate) }.sumOf { it.faceValue }
+
+private fun nextUnreceivedCouponDate(bond: Bond, receipts: List<CouponReceipt>): LocalDate? {
+    val receiptKeys = receipts.asSequence().map { it.eventKey }.toSet()
+    return couponSchedule(bond, bond.nextCouponDate)
+        .firstOrNull { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receiptKeys }
+        ?.date
 }
 
 private fun estimatedReturn(bond: Bond, afterTax: Boolean): Double? {
@@ -1006,6 +1185,38 @@ private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
         })
     }
     context.getSharedPreferences(PREFS, 0).edit().putString(BONDS_KEY, array.toString()).apply()
+}
+
+private fun loadCouponReceipts(context: android.content.Context): List<CouponReceipt> = try {
+    val array = JSONArray(context.getSharedPreferences(PREFS, 0).getString(COUPON_RECEIPTS_KEY, "[]"))
+    (0 until array.length()).map { index ->
+        val item = array.getJSONObject(index)
+        CouponReceipt(
+            bondId = item.getString("bondId"),
+            bondName = item.getString("bondName"),
+            couponDate = LocalDate.parse(item.getString("couponDate"), StorageDateFormat),
+            faceBalanceAtCoupon = item.getDouble("faceBalanceAtCoupon"),
+            estimatedNetAmount = item.getDouble("estimatedNetAmount"),
+            amountReceived = item.getDouble("amountReceived"),
+            receivedDate = LocalDate.parse(item.getString("receivedDate"), StorageDateFormat)
+        )
+    }
+} catch (_: Exception) { emptyList() }
+
+private fun persistCouponReceipts(context: android.content.Context, receipts: List<CouponReceipt>) {
+    val array = JSONArray()
+    receipts.forEach { receipt ->
+        array.put(JSONObject().apply {
+            put("bondId", receipt.bondId)
+            put("bondName", receipt.bondName)
+            put("couponDate", receipt.couponDate.format(StorageDateFormat))
+            put("faceBalanceAtCoupon", receipt.faceBalanceAtCoupon)
+            put("estimatedNetAmount", receipt.estimatedNetAmount)
+            put("amountReceived", receipt.amountReceived)
+            put("receivedDate", receipt.receivedDate.format(StorageDateFormat))
+        })
+    }
+    context.getSharedPreferences(PREFS, 0).edit().putString(COUPON_RECEIPTS_KEY, array.toString()).apply()
 }
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
