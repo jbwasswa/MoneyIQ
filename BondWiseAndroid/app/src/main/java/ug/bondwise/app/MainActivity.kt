@@ -122,7 +122,8 @@ data class CouponReceipt(
     val faceBalanceAtCoupon: Double,
     val estimatedNetAmount: Double,
     val amountReceived: Double,
-    val receivedDate: LocalDate
+    val receivedDate: LocalDate,
+    val principalRepaid: Double = 0.0
 ) {
     val eventKey: String get() = couponEventKey(bondId, couponDate)
 }
@@ -678,10 +679,13 @@ fun BondWiseApp() {
         } else {
             Text("Purchase lots are unchanged here. Use Purchases to add or remove a tranche.", color = Muted, fontSize = 11.sp)
         }
-        Text("Coupon frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            listOf(2 to "Semi-annual", 1 to "Annual").forEach { (n, label) ->
-                Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = form.frequency == n, onClick = { onChange(form.copy(frequency = n)) }); Text(label, fontSize = 12.sp) }
+        Text("Repayment frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            listOf(2 to "6 Months\n(~182 days)", 1 to "Annual").forEach { (n, label) ->
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = form.frequency == n, onClick = { onChange(form.copy(frequency = n)) })
+                    Text(label, fontSize = 11.sp, lineHeight = 13.sp)
+                }
             }
         }
         DateField("Next coupon date *", form.nextCouponDate) { onChange(form.copy(nextCouponDate = it)) }
@@ -908,16 +912,27 @@ fun BondWiseApp() {
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("${row.date.format(DisplayDateFormat)} · ${daysRemaining(row.date)}", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-                            Text(if (row.principal > 0) "${money(row.principal)} principal" else "Coupon", color = Teal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text(
+                                when {
+                                    row.principal > 0 && row.grossCoupon > 0 -> "Coupon + principal"
+                                    row.principal > 0 -> "Principal repayment"
+                                    else -> "Coupon payment"
+                                },
+                                color = Teal, fontWeight = FontWeight.Bold, fontSize = 11.sp
+                            )
                         }
                         if (row.grossCoupon > 0) {
                             Text("Gross coupon: ${money(row.grossCoupon)}", fontSize = 11.sp)
                             Text("Tax withheld (${bond.taxRate.fmt()}%): ${money(row.tax)}", fontSize = 11.sp, color = Muted)
                             Text("Net coupon: ${money(row.netCoupon)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
+                        if (row.principal > 0) {
+                            Text("Principal repayment (no tax): ${money(row.principal)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Total estimated payment: ${money(row.netCoupon + row.principal)}", color = Teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-                Text("Schedule uses regular ${if (bond.frequency == 2) "six-month" else "annual"} periods. If maturity is between coupon dates, any stub coupon is not estimated; principal is shown on the maturity date.", fontSize = 10.sp, color = Muted)
+                Text("Schedule uses regular ${if (bond.frequency == 2) "six-month (about 182-day)" else "annual"} periods. If maturity is between coupon dates, any stub coupon is not estimated; principal is shown on the maturity date without tax.", fontSize = 10.sp, color = Muted)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
@@ -941,7 +956,7 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
     val receiptKeys = receipts.mapTo(mutableSetOf()) { it.eventKey }
     val scheduled = bonds.flatMap { bond ->
         couponSchedule(bond, bond.nextCouponDate)
-            .filter { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receiptKeys }
+            .filter { (it.grossCoupon > 0 || it.principal > 0) && couponEventKey(bond.id, it.date) !in receiptKeys }
             .map { ScheduledCoupon(bond, it) }
     }.sortedBy { it.cashflow.date }
     val history = receipts.sortedWith(compareByDescending<CouponReceipt> { it.receivedDate }.thenByDescending { it.couponDate })
@@ -954,13 +969,13 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                 FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") })
                 FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") })
             }
-            Text("Each scheduled coupon is one payment for the eligible bond balance.", color = Muted, fontSize = 11.sp)
+            Text("Each scheduled payment covers the combined bond balance. At maturity it includes principal repayment, which is not taxed.", color = Muted, fontSize = 11.sp)
         }
         if (!showHistory && scheduled.isEmpty()) {
             item {
                 CardBox {
-                    Text(if (bonds.isEmpty()) "No scheduled coupons" else "No unpaid coupons", fontWeight = FontWeight.Bold)
-                    Text(if (bonds.isEmpty()) "Add a bond to see upcoming coupon payments here." else "All scheduled coupon payments are recorded as received.", color = Muted, fontSize = 12.sp)
+                    Text(if (bonds.isEmpty()) "No scheduled payments" else "No unpaid payments", fontWeight = FontWeight.Bold)
+                    Text(if (bonds.isEmpty()) "Add a bond to see upcoming coupon and principal payments here." else "All scheduled payments are recorded as received.", color = Muted, fontSize = 12.sp)
                 }
             }
         } else if (showHistory && history.isEmpty()) {
@@ -971,11 +986,15 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(receipt.bondName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Coupon ${receipt.couponDate.format(DisplayDateFormat)} · Received ${receipt.receivedDate.format(DisplayDateFormat)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("Payment ${receipt.couponDate.format(DisplayDateFormat)} · Received ${receipt.receivedDate.format(DisplayDateFormat)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                         Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) {
                             Text("Received", color = DiscountGreen, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
                         }
+                    }
+                    if (receipt.principalRepaid > 0) {
+                        Text("Principal repaid (no tax): ${money(receipt.principalRepaid)}", color = Muted, fontSize = 10.sp)
+                        Text("Net coupon estimate: ${money(receipt.estimatedNetAmount - receipt.principalRepaid)}", color = Muted, fontSize = 10.sp)
                     }
                     Text("One payment · Combined face balance ${money(receipt.faceBalanceAtCoupon)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
@@ -1016,19 +1035,22 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                     Text("One payment · Combined face balance ${money(faceBalance)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                         Column {
-                            Text("Estimated net payment", color = Muted, fontSize = 10.sp)
-                            Text(money(payment.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(if (payment.cashflow.principal > 0) "Estimated total payment" else "Estimated net coupon", color = Muted, fontSize = 10.sp)
+                            Text(money(payment.cashflow.netCoupon + payment.cashflow.principal), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Gross ${money(payment.cashflow.grossCoupon)}", color = Muted, fontSize = 9.sp)
-                            Text("Tax ${money(payment.cashflow.tax)}", color = Muted, fontSize = 9.sp)
+                            if (payment.cashflow.grossCoupon > 0) {
+                                Text("Gross coupon ${money(payment.cashflow.grossCoupon)}", color = Muted, fontSize = 9.sp)
+                                Text("Tax on coupon ${money(payment.cashflow.tax)}", color = Muted, fontSize = 9.sp)
+                            }
+                            if (payment.cashflow.principal > 0) Text("Principal ${money(payment.cashflow.principal)} · no tax", color = Muted, fontSize = 9.sp)
                         }
                     }
                     if (due) {
                         OutlinedButton(
                             onClick = {
                                 paymentToRecord = payment
-                                amountReceived = payment.cashflow.netCoupon.grouped()
+                                amountReceived = (payment.cashflow.netCoupon + payment.cashflow.principal).grouped()
                                 receivedDate = LocalDate.now()
                                 receiptError = false
                             },
@@ -1044,12 +1066,14 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
     paymentToRecord?.let { payment ->
         AlertDialog(
             onDismissRequest = { paymentToRecord = null },
-            title = { Text("Confirm coupon received?") },
+            title = { Text("Confirm payment received?") },
             text = {
                 Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("${payment.bond.name} · ${payment.cashflow.date.format(DisplayDateFormat)}", color = Teal, fontWeight = FontWeight.Bold)
                     Text("This records one payment using the combined face balance of ${money(faceBalanceAtCoupon(payment.bond, payment.cashflow.date))}.", color = Muted, fontSize = 11.sp)
-                    Text("Estimated net amount: ${money(payment.cashflow.netCoupon)}", fontSize = 11.sp)
+                    if (payment.cashflow.netCoupon > 0) Text("Estimated net coupon: ${money(payment.cashflow.netCoupon)}", fontSize = 11.sp)
+                    if (payment.cashflow.principal > 0) Text("Principal repayment (no tax): ${money(payment.cashflow.principal)}", fontSize = 11.sp)
+                    Text("Estimated total payment: ${money(payment.cashflow.netCoupon + payment.cashflow.principal)}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     TextFieldBlock("Actual amount received (UGX)", amountReceived, { amountReceived = it; receiptError = false }, KeyboardType.NumberPassword, groupThousands = true)
                     DateField("Date received", receivedDate) { receivedDate = it; receiptError = false }
                     if (receiptError) Text("Enter a positive amount and a received date that is not in the future.", color = PremiumRed, fontSize = 12.sp)
@@ -1066,9 +1090,10 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                             bondName = payment.bond.name,
                             couponDate = payment.cashflow.date,
                             faceBalanceAtCoupon = faceBalanceAtCoupon(payment.bond, payment.cashflow.date),
-                            estimatedNetAmount = payment.cashflow.netCoupon,
+                            estimatedNetAmount = payment.cashflow.netCoupon + payment.cashflow.principal,
                             amountReceived = amount,
-                            receivedDate = receivedDate
+                            receivedDate = receivedDate,
+                            principalRepaid = payment.cashflow.principal
                         ))
                         paymentToRecord = null
                         showHistory = true
@@ -1120,7 +1145,7 @@ private fun daysRemaining(date: LocalDate): String {
                 HelpSection("Tax", "The 10% tax value is an editable default, not a universal rate. Confirm the rate that applies to your bond and circumstances. BondWise applies the entered rate to coupon interest only, not principal repayment.")
                 HelpSection("Estimated return", "For one purchase lot, the estimate is based on that lot’s purchase price, purchase date, maturity and coupon tax rate. For multiple lots, BondWise calculates a combined annualized return (XIRR) using each dated purchase price, projected coupon payments and principal at maturity. It is not a live market valuation or guaranteed return.")
                 HelpSection("Multiple purchases", "Use one saved bond for all purchases of the same bond. Add each purchase with its own date, face value and total purchase price. The bond card totals the lots, while Purchases shows each lot and its premium or discount.")
-                HelpSection("Coupon tracking", "The Coupons tab lists one estimated payment per bond and coupon date, based on the combined face value of purchases dated on or before that coupon date. Confirm a payment only after you receive it; BondWise saves the actual net amount and receipt date. Unconfirmed past payments remain marked Past due.")
+                HelpSection("Coupon and principal payments", "The Coupons tab lists one estimated payment per bond and payment date, based on purchases dated on or before that date. At maturity the payment includes the principal balance as well as any coupon due. Tax applies to coupon interest only; principal repayment is not taxed. Confirm a payment only after you receive it. Unconfirmed past payments remain marked Past due.")
                 HelpSection("Purchase price", "Enter the total amount the bank charged for each purchase. Do not add accrued interest or fees separately; include the amount shown by the bank. The app does not apply market-specific day-count or settlement conventions.")
                 HelpSection("Premium or discount", "BondWise compares Purchase Price with Face Value. A price above face value is shown as a red premium; a price below face value is shown as a green discount.")
                 HelpSection("Compare bonds", "A higher estimated net return means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
@@ -1267,6 +1292,7 @@ private fun encodeCouponReceipts(receipts: List<CouponReceipt>) = JSONArray().ap
         put("bondId", receipt.bondId); put("bondName", receipt.bondName); put("couponDate", receipt.couponDate.format(StorageDateFormat))
         put("faceBalanceAtCoupon", receipt.faceBalanceAtCoupon); put("estimatedNetAmount", receipt.estimatedNetAmount)
         put("amountReceived", receipt.amountReceived); put("receivedDate", receipt.receivedDate.format(StorageDateFormat))
+        put("principalRepaid", receipt.principalRepaid)
     }) }
 }
 
@@ -1302,7 +1328,8 @@ private fun decodeCouponReceipts(array: JSONArray): List<CouponReceipt> = (0 unt
         bondId = item.getString("bondId"), bondName = item.getString("bondName"),
         couponDate = LocalDate.parse(item.getString("couponDate"), StorageDateFormat),
         faceBalanceAtCoupon = item.getDouble("faceBalanceAtCoupon"), estimatedNetAmount = item.getDouble("estimatedNetAmount"),
-        amountReceived = item.getDouble("amountReceived"), receivedDate = LocalDate.parse(item.getString("receivedDate"), StorageDateFormat)
+        amountReceived = item.getDouble("amountReceived"), receivedDate = LocalDate.parse(item.getString("receivedDate"), StorageDateFormat),
+        principalRepaid = item.optDouble("principalRepaid", 0.0)
     )
 }
 
