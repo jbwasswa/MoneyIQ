@@ -370,7 +370,7 @@ fun BondWiseApp() {
                 }
             }
             item { SectionTitle("Your bonds") }
-            items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3)) { bond ->
+            items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3), key = { it.id }) { bond ->
                 BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
             item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare bonds") } }
@@ -404,7 +404,7 @@ fun BondWiseApp() {
         if (sorted.isEmpty()) {
             item { CardBox { Text("No bonds saved yet", fontWeight = FontWeight.Bold); Text("Add a bond to see its estimated yield and coupon schedule here.", color = Muted, fontSize = 12.sp); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(sorted) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
+            items(sorted, key = { it.id }) { bond -> BondCard(bond, collapsible = false, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add a bond") } }
         }
     }
@@ -541,7 +541,7 @@ fun BondWiseApp() {
         if (bonds.isEmpty()) {
             item { CardBox { Text("Your bond list is empty", fontWeight = FontWeight.Bold); Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a bond") } } }
         } else {
-            items(bonds) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
+            items(bonds, key = { it.id }) { bond -> BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = { onEdit(bond) }, onRemove = { onRemove(bond) }, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) }) }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+ Add a bond") } }
         }
     }
@@ -708,20 +708,10 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun BondCard(bond: Bond, isTop: Boolean = false, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?, onLots: (() -> Unit)? = null, onAddPurchase: (() -> Unit)? = null) {
+@Composable private fun BondCard(bond: Bond, isTop: Boolean = false, collapsible: Boolean = true, onSchedule: () -> Unit, onEdit: (() -> Unit)? = null, onRemove: (() -> Unit)?, onLots: (() -> Unit)? = null, onAddPurchase: (() -> Unit)? = null) {
+    var expanded by remember(bond.id) { mutableStateOf(false) }
     val position = premiumDiscount(bond)
     CardBox {
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f)) {
-                Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("${estimatedReturn(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-                Text(netReturnLabel(bond), fontSize = 10.sp, color = Muted)
-            }
-        }
         val purchaseDates = bond.purchaseLots.map { it.purchaseDate }.distinct().sorted()
         val hasUnconfirmedPurchaseDate = bond.purchaseLots.any { !it.purchaseDateConfirmed }
         val purchaseDateText = when {
@@ -729,37 +719,57 @@ fun BondWiseApp() {
             purchaseDates.size == 1 -> purchaseDates.first().format(DisplayDateFormat)
             else -> "${purchaseDates.first().format(DisplayDateFormat)} – ${purchaseDates.last().format(DisplayDateFormat)}"
         }
-        Text(
-            "Purchase date: $purchaseDateText  ·  Next coupon: ${bond.nextCouponDate.format(DisplayDateFormat)}",
-            color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted,
-            fontSize = 9.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricCard("Purchase Price", money(bond.totalCleanPrice), Modifier.weight(1f))
-            MetricCard("Face Value", money(bond.totalFaceValue), Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
-            MetricCard("Net annual coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
-            MetricCard(position.label, position.detail, Modifier.weight(1f), position.color, position.color)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
-            MetricCard(if (bond.purchaseLots.size > 1) "Estimated Gross Return" else "Estimated Gross YTM", "${estimatedReturn(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
-            MetricCard("Tax on coupons", "${bond.taxRate.fmt()}%", Modifier.weight(1f))
-        }
-        if (onLots != null || onAddPurchase != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                if (onLots != null) TextButton(onClick = onLots, modifier = Modifier.weight(1f)) { Text("Purchases (${bond.purchaseLots.size})") }
-                if (onAddPurchase != null) Button(onClick = onAddPurchase, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) { Text("+ Add purchase") }
+        Column(
+            Modifier.fillMaxWidth().then(if (collapsible) Modifier.clickable(onClickLabel = if (expanded) "Hide bond details" else "Show bond details") { expanded = !expanded } else Modifier)
+        ) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text(bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    if (isTop) Text("TOP BY SELECTED MEASURE", color = Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text("Coupon ${bond.couponRate.fmt()}% · Matures ${bond.maturityDate.format(DisplayDateFormat)}", color = Muted, fontSize = 11.sp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("${estimatedReturn(bond, true)?.fmt() ?: "—"}%", color = Teal, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(netReturnLabel(bond), fontSize = 10.sp, color = Muted)
+                }
+            }
+            Text(
+                "Purchase date: $purchaseDateText  ·  Next coupon: ${bond.nextCouponDate.format(DisplayDateFormat)}",
+                color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted,
+                fontSize = 9.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                MetricCard("Face Value", money(bond.totalFaceValue), Modifier.weight(1f))
+                MetricCard("Annual net coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
+            }
+            if (collapsible) {
+                Text(if (expanded) "Hide details  ⌃" else "View details  ⌄", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onSchedule, modifier = Modifier.weight(1.35f), shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) { Text("Schedule") }
-            if (onEdit != null) TextButton(onClick = onEdit) { Text("Edit") }
-            if (onRemove != null) TextButton(onClick = onRemove) { Text("Remove", color = Color(0xFF9A3D42)) }
+        if (expanded || !collapsible) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetricCard("Purchase Price", money(bond.totalCleanPrice), Modifier.weight(1f))
+                MetricCard(position.label, position.detail, Modifier.weight(1f), position.color, position.color)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
+                MetricCard(if (bond.purchaseLots.size > 1) "Estimated Gross Return" else "Estimated Gross YTM", "${estimatedReturn(bond, false)?.fmt() ?: "—"}%", Modifier.weight(1f))
+                MetricCard("Tax on coupons", "${bond.taxRate.fmt()}%", Modifier.weight(1f))
+            }
+            if (onLots != null || onAddPurchase != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    if (onLots != null) TextButton(onClick = onLots, modifier = Modifier.weight(1f)) { Text("Purchases (${bond.purchaseLots.size})") }
+                    if (onAddPurchase != null) Button(onClick = onAddPurchase, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) { Text("+ Add purchase") }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onSchedule, modifier = Modifier.weight(1.35f), shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) { Text("Schedule") }
+                if (onEdit != null) TextButton(onClick = onEdit) { Text("Edit") }
+                if (onRemove != null) TextButton(onClick = onRemove) { Text("Remove", color = Color(0xFF9A3D42)) }
+            }
         }
     }
 }
