@@ -960,6 +960,13 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
             .map { ScheduledCoupon(bond, it) }
     }.sortedBy { it.cashflow.date }
     val history = receipts.sortedWith(compareByDescending<CouponReceipt> { it.receivedDate }.thenByDescending { it.couponDate })
+    val interestCouponTotal = if (showHistory) {
+        history.sumOf { (it.amountReceived - it.principalRepaid).coerceAtLeast(0.0) }
+    } else {
+        scheduled.sumOf { it.cashflow.netCoupon }
+    }
+    val principalTotal = if (showHistory) history.sumOf { it.principalRepaid } else scheduled.sumOf { it.cashflow.principal }
+    val paymentTotal = if (showHistory) history.sumOf { it.amountReceived } else scheduled.sumOf { it.cashflow.netCoupon + it.cashflow.principal }
 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -969,7 +976,13 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                 FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") })
                 FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") })
             }
-            Text("Each scheduled payment covers the combined bond balance. At maturity it includes principal repayment, which is not taxed.", color = Muted, fontSize = 11.sp)
+            CardBox {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    CouponSummaryMetric("Interest coupons", interestCouponTotal, Modifier.weight(1f))
+                    CouponSummaryMetric("Principal repayment", principalTotal, Modifier.weight(1f))
+                    CouponSummaryMetric(if (showHistory) "Total received" else "Total scheduled", paymentTotal, Modifier.weight(1f))
+                }
+            }
         }
         if (!showHistory && scheduled.isEmpty()) {
             item {
@@ -1112,6 +1125,13 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
             confirmButton = { TextButton(onClick = { onUndoReceipt(receipt); receiptToUndo = null; showHistory = false }) { Text("Undo receipt", color = PremiumRed) } },
             dismissButton = { TextButton(onClick = { receiptToUndo = null }) { Text("Keep payment") } }
         )
+    }
+}
+
+@Composable private fun CouponSummaryMetric(label: String, amount: Double, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(label, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(money(amount), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
