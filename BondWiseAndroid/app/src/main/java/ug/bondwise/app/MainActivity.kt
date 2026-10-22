@@ -2,10 +2,13 @@ package ug.bondwise.app
 
 import android.app.DatePickerDialog
 import android.app.Activity
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +47,7 @@ import java.time.temporal.ChronoUnit
 import java.math.BigDecimal
 import java.util.Locale
 import java.util.UUID
+import java.time.Instant
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 
@@ -122,6 +126,8 @@ data class CouponReceipt(
 ) {
     val eventKey: String get() = couponEventKey(bondId, couponDate)
 }
+
+private data class BackupData(val bonds: List<Bond>, val couponReceipts: List<CouponReceipt>)
 
 private fun couponEventKey(bondId: String, couponDate: LocalDate) = "$bondId|${couponDate.format(StorageDateFormat)}"
 
@@ -211,6 +217,9 @@ fun BondWiseApp() {
     var bondPendingDeletion by remember { mutableStateOf<Bond?>(null) }
     var purchasePendingDeletion by remember { mutableStateOf<Pair<Bond, PurchaseLot>?>(null) }
     var showExitConfirmation by remember { mutableStateOf(false) }
+    var showDataMenu by remember { mutableStateOf(false) }
+    var pendingBackupRestore by remember { mutableStateOf<BackupData?>(null) }
+    var backupNotice by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { settledPage ->
@@ -220,6 +229,29 @@ fun BondWiseApp() {
 
     fun save() = persistBonds(context, bonds)
     fun saveCouponReceipts() = persistCouponReceipts(context, couponReceipts)
+    val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) {
+            backupNotice = try {
+                val json = createBackupJson(bonds, couponReceipts)
+                val stream = context.contentResolver.openOutputStream(uri) ?: error("Could not open the selected backup file.")
+                stream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+                "Backup saved with ${bonds.size} ${if (bonds.size == 1) "bond" else "bonds"} and ${couponReceipts.size} coupon payment records."
+            } catch (exception: Exception) {
+                "Could not save the backup: ${exception.message ?: "Please choose another location."}"
+            }
+        }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val stream = context.contentResolver.openInputStream(uri) ?: error("Could not open the selected file.")
+                val backup = stream.bufferedReader(Charsets.UTF_8).use { parseBackupJson(it.readText()) }
+                pendingBackupRestore = backup
+            } catch (exception: Exception) {
+                backupNotice = "This file could not be restored: ${exception.message ?: "Choose a valid BondWise backup."}"
+            }
+        }
+    }
     LaunchedEffect(Unit) { save() }
     fun recordCouponReceipt(receipt: CouponReceipt) {
         val index = couponReceipts.indexOfFirst { it.eventKey == receipt.eventKey }
@@ -251,6 +283,8 @@ fun BondWiseApp() {
     BackHandler {
         when {
             showExitConfirmation -> showExitConfirmation = false
+            pendingBackupRestore != null -> pendingBackupRestore = null
+            showDataMenu -> showDataMenu = false
             purchasePendingDeletion != null -> purchasePendingDeletion = null
             bondPendingDeletion != null -> bondPendingDeletion = null
             purchasePendingEdit != null -> purchasePendingEdit = null
@@ -285,7 +319,20 @@ fun BondWiseApp() {
             }
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad)) {
-                Header(onHelp = { showHelp = true })
+                Header(
+                    onHelp = { showHelp = true },
+                    dataMenuExpanded = showDataMenu,
+                    onDataClick = { showDataMenu = true },
+                    onDataDismiss = { showDataMenu = false },
+                    onExportBackup = {
+                        showDataMenu = false
+                        exportBackupLauncher.launch("BondWise-backup-${LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)}.json")
+                    },
+                    onImportBackup = {
+                        showDataMenu = false
+                        importBackupLauncher.launch(arrayOf("application/json", "text/*"))
+                    }
+                )
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
                         "Overview" -> Overview(bonds, couponReceipts, onCompare = { scope.launch { pagerState.animateScrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
@@ -317,10 +364,45 @@ fun BondWiseApp() {
             confirmButton = { TextButton(onClick = { showExitConfirmation = false; (context as? Activity)?.finish() }) { Text("Exit", color = PremiumRed) } },
             dismissButton = { TextButton(onClick = { showExitConfirmation = false }) { Text("Stay") } }
         )
+        pendingBackupRestore?.let { backup ->
+            AlertDialog(
+                onDismissRequest = { pendingBackupRestore = null },
+                title = { Text("Restore backup?") },
+                text = { Text("This will replace the ${bonds.size} bonds and ${couponReceipts.size} coupon payment records on this device with ${backup.bonds.size} bonds and ${backup.couponReceipts.size} coupon payment records from the backup.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        bonds.clear()
+                        bonds.addAll(backup.bonds)
+                        couponReceipts.clear()
+                        couponReceipts.addAll(backup.couponReceipts)
+                        save()
+                        saveCouponReceipts()
+                        pendingBackupRestore = null
+                        backupNotice = "Backup restored successfully."
+                    }) { Text("Replace and restore", color = PremiumRed) }
+                },
+                dismissButton = { TextButton(onClick = { pendingBackupRestore = null }) { Text("Cancel") } }
+            )
+        }
+        backupNotice?.let { message ->
+            AlertDialog(
+                onDismissRequest = { backupNotice = null },
+                title = { Text("Backup") },
+                text = { Text(message) },
+                confirmButton = { TextButton(onClick = { backupNotice = null }) { Text("OK") } }
+            )
+        }
     }
 }
 
-@Composable private fun Header(onHelp: () -> Unit) {
+@Composable private fun Header(
+    onHelp: () -> Unit,
+    dataMenuExpanded: Boolean,
+    onDataClick: () -> Unit,
+    onDataDismiss: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit
+) {
     Row(
         Modifier.fillMaxWidth().background(Navy).padding(horizontal = 20.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -331,7 +413,16 @@ fun BondWiseApp() {
             Text("BondWise UG", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("Compare bonds and coupon income", color = Color(0xFFD5E4EF), fontSize = 11.sp)
         }
-        TextButton(onClick = onHelp) { Text("? Help", color = Color.White, fontSize = 12.sp) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                TextButton(onClick = onDataClick, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("Data", color = Color.White, fontSize = 11.sp) }
+                DropdownMenu(expanded = dataMenuExpanded, onDismissRequest = onDataDismiss) {
+                    DropdownMenuItem(text = { Text("Export backup") }, onClick = onExportBackup)
+                    DropdownMenuItem(text = { Text("Restore from file") }, onClick = onImportBackup)
+                }
+            }
+            TextButton(onClick = onHelp, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("? Help", color = Color.White, fontSize = 11.sp) }
+        }
     }
 }
 
@@ -1144,79 +1235,92 @@ private fun estimatedReturn(bond: Bond, afterTax: Boolean): Double? {
 }
 
 private fun loadBonds(context: android.content.Context): List<Bond> = try {
-    val array = JSONArray(context.getSharedPreferences(PREFS, 0).getString(BONDS_KEY, "[]"))
-    (0 until array.length()).mapNotNull { index ->
-        val item = array.getJSONObject(index)
-        val id = item.getString("id")
-        val faceValue = item.getDouble("face")
-        val cleanPrice = item.getDouble("price")
-        val lots = item.optJSONArray("lots")?.let { arrayOfLots ->
-            (0 until arrayOfLots.length()).map { lotIndex ->
-                val lot = arrayOfLots.getJSONObject(lotIndex)
-                val accrued = lot.optDouble("accrued", 0.0)
-                val fees = lot.optDouble("fees", 0.0)
-                PurchaseLot(
-                    id = lot.getString("id"), purchaseDate = LocalDate.parse(lot.getString("purchaseDate"), StorageDateFormat),
-                    faceValue = lot.getDouble("face"), cleanPrice = lot.getDouble("price") + accrued + fees,
-                    purchaseDateConfirmed = lot.optBoolean("purchaseDateConfirmed", true)
-                )
-            }
-        } ?: listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = false))
-        Bond(
-            id = id, name = item.getString("name"), faceValue = faceValue,
-            couponRate = item.getDouble("coupon"), cleanPrice = cleanPrice,
-            maturityDate = LocalDate.parse(item.getString("maturity"), StorageDateFormat), nextCouponDate = LocalDate.parse(item.getString("nextCoupon"), StorageDateFormat),
-            frequency = item.getInt("frequency"), taxRate = item.getDouble("tax"), lots = lots
-        )
-    }
+    decodeBonds(JSONArray(context.getSharedPreferences(PREFS, 0).getString(BONDS_KEY, "[]")))
 } catch (_: Exception) { emptyList() }
 
 private fun persistBonds(context: android.content.Context, bonds: List<Bond>) {
-    val array = JSONArray()
-    bonds.forEach { bond ->
-        array.put(JSONObject().apply {
-            put("id", bond.id); put("name", bond.name); put("face", bond.totalFaceValue); put("coupon", bond.couponRate)
-            put("price", bond.totalCleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
-            put("frequency", bond.frequency); put("tax", bond.taxRate)
-            put("lots", JSONArray().apply { bond.purchaseLots.forEach { lot -> put(JSONObject().apply {
-                put("id", lot.id); put("purchaseDate", lot.purchaseDate.format(StorageDateFormat)); put("purchaseDateConfirmed", lot.purchaseDateConfirmed); put("face", lot.faceValue)
-                put("price", lot.cleanPrice)
-            }) } })
-        })
-    }
-    context.getSharedPreferences(PREFS, 0).edit().putString(BONDS_KEY, array.toString()).apply()
+    context.getSharedPreferences(PREFS, 0).edit().putString(BONDS_KEY, encodeBonds(bonds).toString()).apply()
 }
 
 private fun loadCouponReceipts(context: android.content.Context): List<CouponReceipt> = try {
-    val array = JSONArray(context.getSharedPreferences(PREFS, 0).getString(COUPON_RECEIPTS_KEY, "[]"))
-    (0 until array.length()).map { index ->
-        val item = array.getJSONObject(index)
-        CouponReceipt(
-            bondId = item.getString("bondId"),
-            bondName = item.getString("bondName"),
-            couponDate = LocalDate.parse(item.getString("couponDate"), StorageDateFormat),
-            faceBalanceAtCoupon = item.getDouble("faceBalanceAtCoupon"),
-            estimatedNetAmount = item.getDouble("estimatedNetAmount"),
-            amountReceived = item.getDouble("amountReceived"),
-            receivedDate = LocalDate.parse(item.getString("receivedDate"), StorageDateFormat)
-        )
-    }
+    decodeCouponReceipts(JSONArray(context.getSharedPreferences(PREFS, 0).getString(COUPON_RECEIPTS_KEY, "[]")))
 } catch (_: Exception) { emptyList() }
 
 private fun persistCouponReceipts(context: android.content.Context, receipts: List<CouponReceipt>) {
-    val array = JSONArray()
-    receipts.forEach { receipt ->
-        array.put(JSONObject().apply {
-            put("bondId", receipt.bondId)
-            put("bondName", receipt.bondName)
-            put("couponDate", receipt.couponDate.format(StorageDateFormat))
-            put("faceBalanceAtCoupon", receipt.faceBalanceAtCoupon)
-            put("estimatedNetAmount", receipt.estimatedNetAmount)
-            put("amountReceived", receipt.amountReceived)
-            put("receivedDate", receipt.receivedDate.format(StorageDateFormat))
-        })
+    context.getSharedPreferences(PREFS, 0).edit().putString(COUPON_RECEIPTS_KEY, encodeCouponReceipts(receipts).toString()).apply()
+}
+
+private fun encodeBonds(bonds: List<Bond>) = JSONArray().apply {
+    bonds.forEach { bond -> put(JSONObject().apply {
+        put("id", bond.id); put("name", bond.name); put("face", bond.totalFaceValue); put("coupon", bond.couponRate)
+        put("price", bond.totalCleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
+        put("frequency", bond.frequency); put("tax", bond.taxRate)
+        put("lots", JSONArray().apply { bond.purchaseLots.forEach { lot -> put(JSONObject().apply {
+            put("id", lot.id); put("purchaseDate", lot.purchaseDate.format(StorageDateFormat)); put("purchaseDateConfirmed", lot.purchaseDateConfirmed)
+            put("face", lot.faceValue); put("price", lot.cleanPrice)
+        }) } })
+    }) }
+}
+
+private fun encodeCouponReceipts(receipts: List<CouponReceipt>) = JSONArray().apply {
+    receipts.forEach { receipt -> put(JSONObject().apply {
+        put("bondId", receipt.bondId); put("bondName", receipt.bondName); put("couponDate", receipt.couponDate.format(StorageDateFormat))
+        put("faceBalanceAtCoupon", receipt.faceBalanceAtCoupon); put("estimatedNetAmount", receipt.estimatedNetAmount)
+        put("amountReceived", receipt.amountReceived); put("receivedDate", receipt.receivedDate.format(StorageDateFormat))
+    }) }
+}
+
+private fun decodeBonds(array: JSONArray): List<Bond> = (0 until array.length()).map { index ->
+    val item = array.getJSONObject(index)
+    val id = item.getString("id")
+    val faceValue = item.getDouble("face")
+    val cleanPrice = item.getDouble("price")
+    val savedLots = item.optJSONArray("lots")?.let { arrayOfLots ->
+        (0 until arrayOfLots.length()).map { lotIndex ->
+            val lot = arrayOfLots.getJSONObject(lotIndex)
+            PurchaseLot(
+                id = lot.getString("id"), purchaseDate = LocalDate.parse(lot.getString("purchaseDate"), StorageDateFormat),
+                faceValue = lot.getDouble("face"), cleanPrice = lot.getDouble("price") + lot.optDouble("accrued", 0.0) + lot.optDouble("fees", 0.0),
+                purchaseDateConfirmed = lot.optBoolean("purchaseDateConfirmed", true)
+            )
+        }
     }
-    context.getSharedPreferences(PREFS, 0).edit().putString(COUPON_RECEIPTS_KEY, array.toString()).apply()
+    val lots = savedLots?.takeIf { it.isNotEmpty() }
+        ?: listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = false))
+    require(id.isNotBlank() && item.getString("name").isNotBlank()) { "A bond is missing its name or ID." }
+    require(lots.isNotEmpty() && lots.all { it.faceValue > 0 && it.cleanPrice > 0 }) { "A bond has an invalid purchase record." }
+    Bond(
+        id = id, name = item.getString("name"), faceValue = faceValue, couponRate = item.getDouble("coupon"), cleanPrice = cleanPrice,
+        maturityDate = LocalDate.parse(item.getString("maturity"), StorageDateFormat), nextCouponDate = LocalDate.parse(item.getString("nextCoupon"), StorageDateFormat),
+        frequency = item.getInt("frequency"), taxRate = item.getDouble("tax"), lots = lots
+    )
+}
+
+private fun decodeCouponReceipts(array: JSONArray): List<CouponReceipt> = (0 until array.length()).map { index ->
+    val item = array.getJSONObject(index)
+    CouponReceipt(
+        bondId = item.getString("bondId"), bondName = item.getString("bondName"),
+        couponDate = LocalDate.parse(item.getString("couponDate"), StorageDateFormat),
+        faceBalanceAtCoupon = item.getDouble("faceBalanceAtCoupon"), estimatedNetAmount = item.getDouble("estimatedNetAmount"),
+        amountReceived = item.getDouble("amountReceived"), receivedDate = LocalDate.parse(item.getString("receivedDate"), StorageDateFormat)
+    )
+}
+
+private fun createBackupJson(bonds: List<Bond>, receipts: List<CouponReceipt>): String = JSONObject().apply {
+    put("format", "bondwise-backup")
+    put("version", 1)
+    put("exportedAt", Instant.now().toString())
+    put("bonds", encodeBonds(bonds))
+    put("couponReceipts", encodeCouponReceipts(receipts))
+}.toString(2)
+
+private fun parseBackupJson(json: String): BackupData {
+    val root = JSONObject(json)
+    require(root.optString("format") == "bondwise-backup") { "This is not a BondWise backup file." }
+    require(root.optInt("version", -1) == 1) { "This backup version is not supported by this app." }
+    val bondsJson = root.optJSONArray("bonds") ?: error("The backup is missing its bond data.")
+    val receiptsJson = root.optJSONArray("couponReceipts") ?: JSONArray()
+    return BackupData(decodeBonds(bondsJson), decodeCouponReceipts(receiptsJson))
 }
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
