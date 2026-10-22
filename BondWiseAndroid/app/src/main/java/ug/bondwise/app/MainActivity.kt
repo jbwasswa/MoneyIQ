@@ -143,6 +143,17 @@ data class BondForm(
     }
 }
 
+private fun BondForm.validationMessage(): String {
+    val missingDates = listOfNotNull(
+        if (nextCouponDate == null) "Next coupon date" else null,
+        if (maturityDate == null) "Maturity date" else null
+    )
+    if (missingDates.isNotEmpty()) {
+        return if (missingDates.size == 1) "${missingDates.first()} is required." else "${missingDates.joinToString(" and ")} are required."
+    }
+    return "Check the required values. Next coupon must be today or later and before maturity."
+}
+
 data class PurchaseLotForm(
     val purchaseDate: LocalDate = LocalDate.now(),
     val faceValue: String = "",
@@ -362,7 +373,7 @@ fun BondWiseApp() {
             items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3)) { bond ->
                 BondCard(bond, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
-            item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare all bonds  →") } }
+            item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare bonds") } }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add another bond") } }
         }
     }
@@ -569,7 +580,7 @@ fun BondWiseApp() {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Enter the bond terms and its first purchase lot. You can add later purchases from My bonds.", color = Muted, fontSize = 11.sp)
                 BondFields(form, { form = it })
-                if (error) Text("Complete all required values and choose both dates. Next coupon must be today or later and before maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
+                if (error) Text(form.validationMessage(), color = PremiumRed, fontSize = 12.sp)
             }
         },
         confirmButton = { TextButton(onClick = { val bond = form.toBond(); if (bond == null) error = true else onAdd(bond) }) { Text("Save bond") } },
@@ -638,7 +649,7 @@ fun BondWiseApp() {
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit bond") }, text = {
         Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             BondFields(form, { form = it }, includePurchaseDetails = bond.purchaseLots.size == 1)
-            if (error) Text("Check the values and dates.", color = Color(0xFF9A5B00), fontSize = 12.sp)
+            if (error) Text(form.validationMessage(), color = PremiumRed, fontSize = 12.sp)
         }
     }, confirmButton = { TextButton(onClick = { val updated = form.toBond(); if (updated == null) error = true else onSave(updated) }) { Text("Save changes") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
