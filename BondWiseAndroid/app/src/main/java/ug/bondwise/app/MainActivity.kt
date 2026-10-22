@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
@@ -210,6 +212,7 @@ fun BondWiseApp() {
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
     var lotsBond by remember { mutableStateOf<Bond?>(null) }
@@ -218,7 +221,7 @@ fun BondWiseApp() {
     var bondPendingDeletion by remember { mutableStateOf<Bond?>(null) }
     var purchasePendingDeletion by remember { mutableStateOf<Pair<Bond, PurchaseLot>?>(null) }
     var showExitConfirmation by remember { mutableStateOf(false) }
-    var showDataMenu by remember { mutableStateOf(false) }
+    var appMenuPage by remember { mutableStateOf<String?>(null) }
     var pendingBackupRestore by remember { mutableStateOf<BackupData?>(null) }
     var backupNotice by remember { mutableStateOf<String?>(null) }
 
@@ -285,7 +288,7 @@ fun BondWiseApp() {
         when {
             showExitConfirmation -> showExitConfirmation = false
             pendingBackupRestore != null -> pendingBackupRestore = null
-            showDataMenu -> showDataMenu = false
+            appMenuPage != null -> appMenuPage = null
             purchasePendingDeletion != null -> purchasePendingDeletion = null
             bondPendingDeletion != null -> bondPendingDeletion = null
             purchasePendingEdit != null -> purchasePendingEdit = null
@@ -294,6 +297,7 @@ fun BondWiseApp() {
             scheduledBond != null -> scheduledBond = null
             editingBond != null -> editingBond = null
             showAdd -> showAdd = false
+            showAbout -> showAbout = false
             showHelp -> showHelp = false
             page != "Overview" || pagerState.isScrollInProgress -> scope.launch { pagerState.animateScrollToPage(0) }
             else -> showExitConfirmation = true
@@ -321,16 +325,18 @@ fun BondWiseApp() {
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad)) {
                 Header(
-                    onHelp = { showHelp = true },
-                    dataMenuExpanded = showDataMenu,
-                    onDataClick = { showDataMenu = true },
-                    onDataDismiss = { showDataMenu = false },
+                    menuPage = appMenuPage,
+                    onOpenMenu = { appMenuPage = "main" },
+                    onDismissMenu = { appMenuPage = null },
+                    onOpenBackup = { appMenuPage = "backup" },
+                    onHelp = { appMenuPage = null; showHelp = true },
+                    onAbout = { appMenuPage = null; showAbout = true },
                     onExportBackup = {
-                        showDataMenu = false
+                        appMenuPage = null
                         exportBackupLauncher.launch("BondWise-backup-${LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)}.json")
                     },
                     onImportBackup = {
-                        showDataMenu = false
+                        appMenuPage = null
                         importBackupLauncher.launch(arrayOf("application/json", "text/*"))
                     }
                 )
@@ -353,6 +359,7 @@ fun BondWiseApp() {
         }) }
         scheduledBond?.let { ScheduleDialog(it, onDismiss = { scheduledBond = null }) }
         if (showHelp) HelpDialog(onDismiss = { showHelp = false })
+        if (showAbout) AboutDialog(context = context, onDismiss = { showAbout = false })
         lotsBond?.let { bond -> PurchaseLotsDialog(bond, onDismiss = { lotsBond = null }, onAdd = { lotsBond = null; purchaseBond = bond }, onEdit = { lot -> lotsBond = null; purchasePendingEdit = bond to lot }, onRemove = { lot -> purchasePendingDeletion = bond to lot }) }
         purchaseBond?.let { bond -> PurchaseLotDialog(bond, PurchaseLotForm(), "Add purchase lot", "Save purchase", onDismiss = { purchaseBond = null }, onSave = { lot -> addPurchase(bond.id, lot); purchaseBond = null }) }
         purchasePendingEdit?.let { (bond, lot) -> PurchaseLotDialog(bond, lot.toForm(), "Edit purchase", "Save changes", onDismiss = { purchasePendingEdit = null }, onSave = { updated -> updatePurchase(bond.id, updated); purchasePendingEdit = null; lotsBond = bonds.firstOrNull { it.id == bond.id } }) }
@@ -397,10 +404,12 @@ fun BondWiseApp() {
 }
 
 @Composable private fun Header(
+    menuPage: String?,
+    onOpenMenu: () -> Unit,
+    onDismissMenu: () -> Unit,
+    onOpenBackup: () -> Unit,
     onHelp: () -> Unit,
-    dataMenuExpanded: Boolean,
-    onDataClick: () -> Unit,
-    onDataDismiss: () -> Unit,
+    onAbout: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
@@ -414,15 +423,23 @@ fun BondWiseApp() {
             Text("BondWise UG", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("Compare bonds and coupon income", color = Color(0xFFD5E4EF), fontSize = 11.sp)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                TextButton(onClick = onDataClick, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("Data", color = Color.White, fontSize = 11.sp) }
-                DropdownMenu(expanded = dataMenuExpanded, onDismissRequest = onDataDismiss) {
-                    DropdownMenuItem(text = { Text("Export backup") }, onClick = onExportBackup)
+        Box {
+            IconButton(onClick = onOpenMenu, modifier = Modifier.semantics { contentDescription = "Open app menu" }) {
+                Text("☰", color = Color.White, fontSize = 22.sp)
+            }
+            DropdownMenu(expanded = menuPage != null, onDismissRequest = onDismissMenu) {
+                if (menuPage == "backup") {
+                    Text("Backup & restore", modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("‹ Back to menu") }, onClick = onOpenMenu)
+                    DropdownMenuItem(text = { Text("Export backup file") }, onClick = onExportBackup)
                     DropdownMenuItem(text = { Text("Restore from file") }, onClick = onImportBackup)
+                } else {
+                    DropdownMenuItem(text = { Text("Backup & restore") }, onClick = onOpenBackup)
+                    DropdownMenuItem(text = { Text("Help") }, onClick = onHelp)
+                    DropdownMenuItem(text = { Text("About") }, onClick = onAbout)
                 }
             }
-            TextButton(onClick = onHelp, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Text("? Help", color = Color.White, fontSize = 11.sp) }
         }
     }
 }
@@ -1169,6 +1186,23 @@ private fun daysRemaining(date: LocalDate): String {
                 HelpSection("Purchase price", "Enter the total amount the bank charged for each purchase. Do not add accrued interest or fees separately; include the amount shown by the bank. The app does not apply market-specific day-count or settlement conventions.")
                 HelpSection("Premium or discount", "BondWise compares Purchase Price with Face Value. A price above face value is shown as a red premium; a price below face value is shown as a green discount.")
                 HelpSection("Compare bonds", "A higher estimated net return means a higher modeled return on the figures entered. Also consider maturity, coupon income, liquidity, and whether the bond suits your plans.")
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
+}
+
+@Composable private fun AboutDialog(context: android.content.Context, onDismiss: () -> Unit) {
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "Unknown"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("About BondWise UG") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Compare bonds and coupon income.", fontWeight = FontWeight.SemiBold)
+                Text("Version $version", color = Muted, fontSize = 12.sp)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
