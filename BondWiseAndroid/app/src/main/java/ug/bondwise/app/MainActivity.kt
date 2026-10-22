@@ -681,7 +681,7 @@ fun BondWiseApp() {
         }
         Text("Repayment frequency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            listOf(2 to "6 Months\n(~182 days)", 1 to "Annual").forEach { (n, label) ->
+            listOf(2 to "182 days\n(6 months)", 1 to "Annual").forEach { (n, label) ->
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = form.frequency == n, onClick = { onChange(form.copy(frequency = n)) })
                     Text(label, fontSize = 11.sp, lineHeight = 13.sp)
@@ -932,7 +932,7 @@ fun BondWiseApp() {
                         }
                     }
                 }
-                Text("Schedule uses regular ${if (bond.frequency == 2) "six-month (about 182-day)" else "annual"} periods. If maturity is between coupon dates, any stub coupon is not estimated; principal is shown on the maturity date without tax.", fontSize = 10.sp, color = Muted)
+                Text("Schedule repeats every ${if (bond.frequency == 2) "182 days" else "12 months"}. If maturity is between coupon dates, any stub coupon is not estimated; principal is shown on the maturity date without tax.", fontSize = 10.sp, color = Muted)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
@@ -1207,6 +1207,7 @@ private fun couponSchedule(bond: Bond, fromDate: LocalDate = LocalDate.now()): L
     val anchor = bond.nextCouponDate
     val anchorDay = anchor.dayOfMonth
     fun dateAt(index: Long): LocalDate {
+        if (bond.frequency == 2) return anchor.plusDays(182L * index)
         val month = YearMonth.from(anchor).plusMonths(periodMonths.toLong() * index)
         return month.atDay(anchorDay.coerceAtMost(month.lengthOfMonth()))
     }
