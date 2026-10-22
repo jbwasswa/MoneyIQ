@@ -120,8 +120,8 @@ data class BondForm(
     val price: String = "",
     val tax: String = "10",
     val frequency: Int = 2,
-    val nextCouponDate: LocalDate = LocalDate.now().plusMonths(6),
-    val maturityDate: LocalDate = LocalDate.now().plusYears(5),
+    val nextCouponDate: LocalDate? = null,
+    val maturityDate: LocalDate? = null,
     val purchaseDate: LocalDate = LocalDate.now(),
     val purchaseDateConfirmed: Boolean = true
 ) {
@@ -130,6 +130,8 @@ data class BondForm(
         val couponRate = coupon.toDoubleOrNull() ?: return null
         val cleanPrice = price.toAmountOrNull() ?: return null
         val taxRate = tax.toDoubleOrNull() ?: return null
+        val nextCouponDate = nextCouponDate ?: return null
+        val maturityDate = maturityDate ?: return null
         if (name.isBlank() || faceValue <= 0 || couponRate < 0 || cleanPrice <= 0 || taxRate !in 0.0..100.0) return null
         if (frequency !in listOf(1, 2) || nextCouponDate.isBefore(LocalDate.now()) || !nextCouponDate.isBefore(maturityDate)) return null
         if (purchaseDate.isAfter(LocalDate.now()) || !purchaseDate.isBefore(maturityDate)) return null
@@ -551,8 +553,8 @@ fun BondWiseApp() {
                 Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = form.frequency == n, onClick = { onChange(form.copy(frequency = n)) }); Text(label, fontSize = 12.sp) }
             }
         }
-        DateField("Next coupon date", form.nextCouponDate) { onChange(form.copy(nextCouponDate = it)) }
-        DateField("Maturity date", form.maturityDate) { onChange(form.copy(maturityDate = it)) }
+        DateField("Next coupon date *", form.nextCouponDate) { onChange(form.copy(nextCouponDate = it)) }
+        DateField("Maturity date *", form.maturityDate) { onChange(form.copy(maturityDate = it)) }
         TextFieldBlock("Coupon withholding tax (%)", form.tax, { onChange(form.copy(tax = it)) }, KeyboardType.Decimal)
     }
 }
@@ -567,7 +569,7 @@ fun BondWiseApp() {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Enter the bond terms and its first purchase lot. You can add later purchases from My bonds.", color = Muted, fontSize = 11.sp)
                 BondFields(form, { form = it })
-                if (error) Text("Check the required values and dates. Next coupon must be today or later and before maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
+                if (error) Text("Complete all required values and choose both dates. Next coupon must be today or later and before maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
             }
         },
         confirmButton = { TextButton(onClick = { val bond = form.toBond(); if (bond == null) error = true else onAdd(bond) }) { Text("Save bond") } },
@@ -641,13 +643,14 @@ fun BondWiseApp() {
     }, confirmButton = { TextButton(onClick = { val updated = form.toBond(); if (updated == null) error = true else onSave(updated) }) { Text("Save changes") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
-@Composable private fun DateField(label: String, date: LocalDate, onDate: (LocalDate) -> Unit) {
+@Composable private fun DateField(label: String, date: LocalDate?, onDate: (LocalDate) -> Unit) {
     val context = LocalContext.current
     Surface(color = Color(0xFFF5F8FB), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth().clickable {
-        DatePickerDialog(context, { _, year, month, day -> onDate(LocalDate.of(year, month + 1, day)) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+        val initialDate = date ?: LocalDate.now()
+        DatePickerDialog(context, { _, year, month, day -> onDate(LocalDate.of(year, month + 1, day)) }, initialDate.year, initialDate.monthValue - 1, initialDate.dayOfMonth).show()
     }) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column { Text(label, fontSize = 10.sp, color = Muted); Text(date.format(DisplayDateFormat), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink) }
+            Column { Text(label, fontSize = 10.sp, color = Muted); Text(date?.format(DisplayDateFormat) ?: "Select date", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (date == null) Muted else Ink) }
             Text("Choose date", fontSize = 11.sp, color = Teal, fontWeight = FontWeight.Bold)
         }
     }
@@ -742,8 +745,8 @@ fun BondWiseApp() {
                 if (onAddPurchase != null) Button(onClick = onAddPurchase, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) { Text("+ Add purchase") }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            TextButton(onClick = onSchedule, modifier = Modifier.weight(1f)) { Text("Schedule") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = onSchedule, modifier = Modifier.weight(1.35f), shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) { Text("Schedule") }
             if (onEdit != null) TextButton(onClick = onEdit) { Text("Edit") }
             if (onRemove != null) TextButton(onClick = onRemove) { Text("Remove", color = Color(0xFF9A3D42)) }
         }
