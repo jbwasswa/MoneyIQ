@@ -24,7 +24,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -207,7 +206,6 @@ fun BondWiseApp() {
     val bonds = remember { mutableStateListOf<Bond>().apply { addAll(loadBonds(context)) } }
     val couponReceipts = remember { mutableStateListOf<CouponReceipt>().apply { addAll(loadCouponReceipts(context)) } }
     val pages = listOf("Overview", "Compare", "Calculator", "Coupons", "My bonds")
-    var page by remember { mutableStateOf("Overview") }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
@@ -224,12 +222,6 @@ fun BondWiseApp() {
     var appMenuPage by remember { mutableStateOf<String?>(null) }
     var pendingBackupRestore by remember { mutableStateOf<BackupData?>(null) }
     var backupNotice by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { settledPage ->
-            page = pages[settledPage]
-        }
-    }
 
     fun save() = persistBonds(context, bonds)
     fun saveCouponReceipts() = persistCouponReceipts(context, couponReceipts)
@@ -299,7 +291,7 @@ fun BondWiseApp() {
             showAdd -> showAdd = false
             showAbout -> showAbout = false
             showHelp -> showHelp = false
-            page != "Overview" || pagerState.isScrollInProgress -> scope.launch { pagerState.animateScrollToPage(0) }
+            pagerState.currentPage != 0 || pagerState.isScrollInProgress -> scope.launch { pagerState.animateScrollToPage(0) }
             else -> showExitConfirmation = true
         }
     }
@@ -311,7 +303,7 @@ fun BondWiseApp() {
                 NavigationBar(containerColor = Color.White) {
                     pages.forEach { item ->
                         NavigationBarItem(
-                            selected = page == item,
+                            selected = pagerState.currentPage == pages.indexOf(item),
                             onClick = {
                                 val target = pages.indexOf(item)
                                 if (target >= 0) scope.launch { pagerState.animateScrollToPage(target) }
