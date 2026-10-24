@@ -440,7 +440,7 @@ fun BondWiseApp() {
 
 @Composable private fun Overview(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionTitle("Portfolio overview", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
+        item { SectionTitle("Portfolio Overview", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
         if (bonds.isEmpty()) {
             item {
                 CardBox {
@@ -490,8 +490,8 @@ fun BondWiseApp() {
                 if (otherValue > 0) visibleAllocation.add(Triple("Other bonds", otherValue, palette.last()))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Portfolio allocation", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("By face value", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Portfolio Allocation", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("By Face Value", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                     CardBox {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -512,8 +512,7 @@ fun BondWiseApp() {
                                     drawCircle(Color.White, radius = size.minDimension * 0.29f)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(bonds.size.toString(), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-                                    Text("BONDS", fontSize = 8.sp, color = Muted)
+                                    Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -535,20 +534,19 @@ fun BondWiseApp() {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Coming up", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text("Next coupon", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Coming Up", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Next Coupon", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                         }
                         CardBox {
                             val scheduledPayment = nextCoupon.cashflow.netCoupon + nextCoupon.cashflow.principal
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(nextCoupon.bond.name, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                    Text(nextCoupon.cashflow.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text(daysRemaining(nextCoupon.cashflow.date), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("${nextCoupon.cashflow.date.format(DisplayDateFormat)} · ${daysRemaining(nextCoupon.cashflow.date)}", fontWeight = FontWeight.Bold, color = Teal, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(money(scheduledPayment), color = Teal, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1)
-                                    Text(if (nextCoupon.cashflow.principal > 0) "Coupon + principal" else "Estimated coupon", color = Muted, fontSize = 9.sp)
+                                    Text(if (nextCoupon.cashflow.principal > 0) "Coupon + Principal" else "Estimated Coupon", color = Muted, fontSize = 9.sp)
                                 }
                             }
                         }
@@ -557,12 +555,17 @@ fun BondWiseApp() {
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Portfolio at a glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Portfolio at a Glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
                         Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text("Highest ${best?.let { netReturnLabel(it) } ?: "estimated net return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
+                                Text("Bonds Tracked", color = Muted, fontSize = 9.sp, maxLines = 1)
+                                Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            }
+                        }
+                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text("Highest ${best?.let { netReturnLabel(it) } ?: "Estimated Net Return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(best?.name ?: "—", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(best?.let { estimatedReturn(it, true)?.fmt()?.plus("%") } ?: "—", color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
@@ -572,7 +575,7 @@ fun BondWiseApp() {
                     }
                 }
             }
-            item { SectionTitle("Your bonds") }
+            item { SectionTitle("Your Bonds") }
             items(bonds.sortedWith(compareBy<Bond> { it.purchaseLots.minOf { lot -> lot.purchaseDate } }.thenBy { it.name.lowercase(Locale.ROOT) }), key = { it.id }) { bond ->
                 BondCard(bond, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
@@ -925,6 +928,7 @@ fun BondWiseApp() {
             purchaseDates.size == 1 -> purchaseDates.first().format(DisplayDateFormat)
             else -> "${purchaseDates.first().format(DisplayDateFormat)} – ${purchaseDates.last().format(DisplayDateFormat)}"
         }
+        val purchaseDateLabel = if (purchaseDates.size > 1) "Purchase Period" else "Purchase Date"
         val nextCouponDate = nextUnreceivedCouponDate(bond, receipts)
         Column(
             Modifier.fillMaxWidth().then(if (collapsible) Modifier.clickable(onClickLabel = if (expanded) "Hide bond details" else "Show bond details") { expanded = !expanded } else Modifier)
@@ -940,17 +944,22 @@ fun BondWiseApp() {
                     Text(netReturnLabel(bond), fontSize = 10.sp, color = Muted)
                 }
             }
-            Text(
-                "Purchase date: $purchaseDateText  ·  Next coupon: ${nextCouponDate?.format(DisplayDateFormat) ?: "—"}",
-                color = if (hasUnconfirmedPurchaseDate) PremiumRed else Muted,
-                fontSize = 9.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1.15f)) {
+                    Text(purchaseDateLabel, color = Muted, fontSize = 8.sp, maxLines = 1)
+                    Text(purchaseDateText, color = if (hasUnconfirmedPurchaseDate) PremiumRed else Ink, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    Text("Next Coupon", color = Muted, fontSize = 8.sp, maxLines = 1)
+                    Text(
+                        nextCouponDate?.let { "${it.format(DisplayDateFormat)} · ${daysRemaining(it)}" } ?: "—",
+                        color = Teal, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                 MetricCard("Face Value", money(bond.totalFaceValue), Modifier.weight(1f))
-                MetricCard("Annual net coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
+                MetricCard("Annual Net Coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
             }
             if (collapsible) {
                 Text(if (expanded) "Hide details  ⌃" else "View details  ⌄", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
