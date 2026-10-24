@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
@@ -451,56 +453,127 @@ fun BondWiseApp() {
         } else {
             val best = bonds.maxByOrNull { estimatedReturn(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
             val receivedEventKeys = couponReceipts.mapTo(mutableSetOf()) { it.eventKey }
+            val totalFaceValue = bonds.sumOf { it.totalFaceValue }
+            val totalNetCoupons = bonds.sumOf { it.annualNetCoupon }
+            val totalPurchasePrice = bonds.sumOf { it.totalCleanPrice }
             val nextCoupon = bonds.flatMap { bond ->
                 couponSchedule(bond).filter { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receivedEventKeys }.map { ScheduledCoupon(bond, it) }
             }.minByOrNull { it.cashflow.date }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CardBox {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Face value held", color = Muted, fontSize = 10.sp)
-                                Text(money(bonds.sumOf { it.totalFaceValue }), color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text("Annual net coupons", color = Muted, fontSize = 10.sp)
-                                Text(money(bonds.sumOf { it.annualNetCoupon }), color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-                            }
+                Column(
+                    Modifier.fillMaxWidth().background(
+                        Brush.linearGradient(listOf(Navy, Color(0xFF344F9A))), RoundedCornerShape(22.dp)
+                    ).padding(17.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Face Value Held", color = Color(0xFFD4DDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
+                    Text(money(totalFaceValue), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Across ${bonds.size} ${if (bonds.size == 1) "bond" else "bonds"}", color = Color(0xFFD4DDF8), fontSize = 10.sp)
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Annual Net Coupons", color = Color(0xFFD4DDF8), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text(money(totalNetCoupons), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                            Text("Total Purchase Price", color = Color(0xFFD4DDF8), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text(money(totalPurchasePrice), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
-                        MetricCard("Total purchase price", money(bonds.sumOf { it.totalCleanPrice }), Modifier.weight(1f))
+                }
+            }
+            item {
+                val palette = listOf(Teal, Color(0xFF48A5E6), Color(0xFF7968D9), Color(0xFFE6A64B), Color(0xFFDA6D88))
+                val sortedAllocation = bonds.sortedByDescending { it.totalFaceValue }
+                val visibleAllocation = sortedAllocation.take(4).mapIndexed { index, bond -> Triple(bond.name, bond.totalFaceValue, palette[index % palette.size]) }.toMutableList()
+                val otherValue = sortedAllocation.drop(4).sumOf { it.totalFaceValue }
+                if (otherValue > 0) visibleAllocation.add(Triple("Other bonds", otherValue, palette.last()))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Portfolio allocation", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("By face value", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    CardBox {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Box(Modifier.size(94.dp), contentAlignment = Alignment.Center) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val positiveTotal = sortedAllocation.sumOf { it.totalFaceValue.coerceAtLeast(0.0) }
+                                    if (positiveTotal > 0) {
+                                        var start = -90f
+                                        visibleAllocation.forEachIndexed { index, entry ->
+                                            val value = entry.second
+                                            val sweep = (value.coerceAtLeast(0.0) / positiveTotal * 360.0).toFloat()
+                                            drawArc(entry.third, start, sweep, useCenter = true)
+                                            start += sweep
+                                        }
+                                    } else {
+                                        drawCircle(Line)
+                                    }
+                                    drawCircle(Color.White, radius = size.minDimension * 0.29f)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(bonds.size.toString(), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                                    Text("BONDS", fontSize = 8.sp, color = Muted)
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                val positiveTotal = totalFaceValue.coerceAtLeast(0.0)
+                                visibleAllocation.forEach { entry ->
+                                    val value = entry.second
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Box(Modifier.size(8.dp).background(entry.third, RoundedCornerShape(50)))
+                                        Text(entry.first, Modifier.weight(1f), fontSize = 9.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(if (positiveTotal > 0) "${(value.coerceAtLeast(0.0) / positiveTotal * 100).toInt()}%" else "0%", fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
             if (nextCoupon != null) {
                 item {
-                    CardBox {
-                        Text("Next coupon", color = Muted, fontSize = 11.sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(nextCoupon.bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("${nextCoupon.cashflow.date.format(DisplayDateFormat)} · ${daysRemaining(nextCoupon.cashflow.date)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("Coming up", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Next coupon", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        CardBox {
+                            val scheduledPayment = nextCoupon.cashflow.netCoupon + nextCoupon.cashflow.principal
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(nextCoupon.bond.name, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text(nextCoupon.cashflow.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(daysRemaining(nextCoupon.cashflow.date), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(money(scheduledPayment), color = Teal, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1)
+                                    Text(if (nextCoupon.cashflow.principal > 0) "Coupon + principal" else "Estimated coupon", color = Muted, fontSize = 9.sp)
+                                }
                             }
-                            Text(money(nextCoupon.cashflow.netCoupon), color = Teal, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
                 }
             }
             item {
-                CardBox {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Highest ${best?.let { netReturnLabel(it) } ?: "estimated net return"}", color = Muted, fontSize = 11.sp)
-                            Text(best?.name ?: "—", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Portfolio at a glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
+                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text("Highest ${best?.let { netReturnLabel(it) } ?: "estimated net return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(best?.name ?: "—", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(best?.let { estimatedReturn(it, true)?.fmt()?.plus("%") } ?: "—", color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
                         }
-                        Text(best?.let { estimatedReturn(it, true)?.fmt()?.plus("%") } ?: "—", color = Teal, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
             item { SectionTitle("Your bonds") }
-            items(bonds.sortedByDescending { estimatedReturn(it, true) ?: Double.NEGATIVE_INFINITY }.take(3), key = { it.id }) { bond ->
+            items(bonds.sortedWith(compareBy<Bond> { it.purchaseLots.minOf { lot -> lot.purchaseDate } }.thenBy { it.name.lowercase(Locale.ROOT) }), key = { it.id }) { bond ->
                 BondCard(bond, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
             item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare bonds") } }
