@@ -15,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -439,7 +440,9 @@ fun BondWiseApp() {
 }
 
 @Composable private fun Overview(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionTitle("Portfolio Overview", if (bonds.size == 1) "1 BOND" else "${bonds.size} BONDS") }
         if (bonds.isEmpty()) {
             item {
@@ -459,6 +462,7 @@ fun BondWiseApp() {
             val nextCoupon = bonds.flatMap { bond ->
                 couponSchedule(bond).filter { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receivedEventKeys }.map { ScheduledCoupon(bond, it) }
             }.minByOrNull { it.cashflow.date }
+            val yourBondsHeaderIndex = if (nextCoupon != null) 5 else 4
             item {
                 Column(
                     Modifier.fillMaxWidth().background(
@@ -468,7 +472,6 @@ fun BondWiseApp() {
                 ) {
                     Text("Face Value Held", color = Color(0xFFD4DDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
                     Text(money(totalFaceValue), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Across ${bonds.size} ${if (bonds.size == 1) "bond" else "bonds"}", color = Color(0xFFD4DDF8), fontSize = 10.sp)
                     HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)) {
@@ -491,9 +494,11 @@ fun BondWiseApp() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Portfolio Allocation", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("By Face Value", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text("By Face Value · View Bonds ↓", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    CardBox {
+                    CardBox(modifier = Modifier.clickable(onClickLabel = "View Your Bonds") {
+                        coroutineScope.launch { listState.animateScrollToItem(yourBondsHeaderIndex) }
+                    }) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             Box(Modifier.size(94.dp), contentAlignment = Alignment.Center) {
                                 Canvas(Modifier.fillMaxSize()) {
@@ -1290,8 +1295,8 @@ private fun daysRemaining(date: LocalDate): String {
     }
 }
 
-@Composable private fun CardBox(content: @Composable ColumnScope.() -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+@Composable private fun CardBox(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(15.dp), content = content)
     }
 }
@@ -1305,7 +1310,7 @@ private fun daysRemaining(date: LocalDate): String {
 @Composable private fun SectionTitle(title: String, tag: String? = null) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        if (tag != null) Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
+        if (tag != null) Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(9.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
     }
 }
 
