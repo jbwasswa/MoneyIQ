@@ -482,52 +482,6 @@ fun BondWiseApp() {
                     }
                 }
             }
-            item { SectionTitle("Your bonds") }
-            items(bonds.sortedWith(compareBy<Bond> { it.purchaseLots.minOf { lot -> lot.purchaseDate } }.thenBy { it.name.lowercase(Locale.ROOT) }), key = { it.id }) { bond ->
-                BondCard(bond, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
-            }
-            if (nextCoupon != null) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Coming up", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text("Next coupon", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        CardBox {
-                            val scheduledPayment = nextCoupon.cashflow.netCoupon + nextCoupon.cashflow.principal
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(nextCoupon.bond.name, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                    Text(nextCoupon.cashflow.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text(daysRemaining(nextCoupon.cashflow.date), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(money(scheduledPayment), color = Teal, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1)
-                                    Text(if (nextCoupon.cashflow.principal > 0) "Coupon + principal" else "Estimated coupon", color = Muted, fontSize = 9.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Portfolio at a glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
-                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text("Highest ${best?.let { netReturnLabel(it) } ?: "estimated net return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(best?.name ?: "—", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(best?.let { estimatedReturn(it, true)?.fmt()?.plus("%") } ?: "—", color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             item {
                 val palette = listOf(Teal, Color(0xFF48A5E6), Color(0xFF7968D9), Color(0xFFE6A64B), Color(0xFFDA6D88))
                 val sortedAllocation = bonds.sortedByDescending { it.totalFaceValue }
@@ -576,6 +530,51 @@ fun BondWiseApp() {
                         }
                     }
                 }
+            }
+            if (nextCoupon != null) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Coming up", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Next coupon", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        CardBox {
+                            val scheduledPayment = nextCoupon.cashflow.netCoupon + nextCoupon.cashflow.principal
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(nextCoupon.bond.name, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text(nextCoupon.cashflow.date.format(DisplayDateFormat), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(daysRemaining(nextCoupon.cashflow.date), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(money(scheduledPayment), color = Teal, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1)
+                                    Text(if (nextCoupon.cashflow.principal > 0) "Coupon + principal" else "Estimated coupon", color = Muted, fontSize = 9.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Portfolio at a glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Bonds tracked", bonds.size.toString(), Modifier.weight(1f))
+                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text("Highest ${best?.let { netReturnLabel(it) } ?: "estimated net return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(best?.name ?: "—", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(best?.let { estimatedReturn(it, true)?.fmt()?.plus("%") } ?: "—", color = Teal, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item { SectionTitle("Your bonds") }
+            items(bonds.sortedWith(compareBy<Bond> { it.purchaseLots.minOf { lot -> lot.purchaseDate } }.thenBy { it.name.lowercase(Locale.ROOT) }), key = { it.id }) { bond ->
+                BondCard(bond, receipts = couponReceipts, onSchedule = { onSchedule(bond) }, onEdit = null, onRemove = null, onLots = { onLots(bond) }, onAddPurchase = { onAddPurchase(bond) })
             }
             item { Button(onClick = onCompare, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Compare bonds") } }
             item { OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("+ Add another bond") } }
