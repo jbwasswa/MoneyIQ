@@ -565,7 +565,7 @@ fun BondWiseApp() {
                 Text("Enabled currencies", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 (CurrencyNames.keys + customNames.keys).distinct().sorted().forEach { code ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        val lockedByBond = code in currenciesInUse && code in enabled
+                        val lockedByBond = code != "UGX" && code in currenciesInUse && code in enabled
                         Checkbox(checked = code in enabled, enabled = code != base && !lockedByBond, onCheckedChange = { checked ->
                             enabled = if (checked) enabled + code else enabled - code
                         })
