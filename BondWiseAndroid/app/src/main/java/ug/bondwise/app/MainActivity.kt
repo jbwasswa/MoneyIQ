@@ -696,8 +696,11 @@ fun BondWiseApp() {
                     ).padding(17.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                        Text("Face Value Held · ${currencySettings.baseCurrency}", color = BannerMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("Face Value Held · ${currencySettings.baseCurrency}", color = BannerMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(money(totalFaceValue, currencySettings.baseCurrency), color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                         if (missingRateCount == 0) {
                             val difference = totalPurchasePrice - totalFaceValue
                             val isAtFaceValue = kotlin.math.abs(difference) < 0.005
@@ -713,7 +716,6 @@ fun BondWiseApp() {
                             Text("Rate needed", color = BannerMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    Text(money(totalFaceValue, currencySettings.baseCurrency), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)) {
