@@ -595,7 +595,18 @@ fun BondWiseApp() {
                             label = { Text(base) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Ink,
+                                unfocusedTextColor = Ink,
+                                cursorColor = Teal,
+                                focusedContainerColor = SoftSurface,
+                                unfocusedContainerColor = SoftSurface,
+                                focusedBorderColor = Teal,
+                                unfocusedBorderColor = Line,
+                                focusedLabelColor = Teal,
+                                unfocusedLabelColor = Muted
+                            )
                         )
                         Text(base, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
