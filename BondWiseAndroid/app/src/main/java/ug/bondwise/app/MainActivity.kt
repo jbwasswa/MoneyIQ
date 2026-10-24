@@ -101,6 +101,7 @@ private const val PREFS = "bondwise_local"
 private const val BONDS_KEY = "saved_bonds"
 private const val COUPON_RECEIPTS_KEY = "coupon_receipts"
 private const val THEME_KEY = "color_theme"
+private const val CURRENCY_CONFIG_KEY = "currency_config"
 private val PremiumRed: Color get() = if (activePalette.isDark) Color(0xFFFF8989) else Color(0xFFB54747)
 private val DiscountGreen: Color get() = if (activePalette.isDark) Color(0xFF57D6A0) else Color(0xFF16835D)
 
@@ -132,7 +133,8 @@ data class Bond(
     val nextCouponDate: LocalDate,
     val frequency: Int,
     val taxRate: Double,
-    val lots: List<PurchaseLot> = emptyList()
+    val lots: List<PurchaseLot> = emptyList(),
+    val currency: String = "UGX"
 ) {
     val purchaseLots: List<PurchaseLot> get() = lots.ifEmpty { listOf(PurchaseLot(id = "legacy-$id", purchaseDate = LocalDate.now(), faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = false)) }
     val totalFaceValue: Double get() = purchaseLots.sumOf { it.faceValue }
@@ -146,7 +148,7 @@ data class Bond(
 
 private fun Bond.toForm(): BondForm {
     val firstLot = purchaseLots.first()
-    return BondForm(id = id, name = name, face = totalFaceValue.grouped(), coupon = couponRate.toString(), price = totalCleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate, purchaseDate = firstLot.purchaseDate, purchaseDateConfirmed = firstLot.purchaseDateConfirmed)
+    return BondForm(id = id, name = name, face = totalFaceValue.grouped(), coupon = couponRate.toString(), price = totalCleanPrice.grouped(), tax = taxRate.toString(), frequency = frequency, nextCouponDate = nextCouponDate, maturityDate = maturityDate, purchaseDate = firstLot.purchaseDate, purchaseDateConfirmed = firstLot.purchaseDateConfirmed, currency = currency)
 }
 
 data class Cashflow(
@@ -165,12 +167,27 @@ data class CouponReceipt(
     val estimatedNetAmount: Double,
     val amountReceived: Double,
     val receivedDate: LocalDate,
-    val principalRepaid: Double = 0.0
+    val principalRepaid: Double = 0.0,
+    val currency: String = "UGX"
 ) {
     val eventKey: String get() = couponEventKey(bondId, couponDate)
 }
 
-private data class BackupData(val bonds: List<Bond>, val couponReceipts: List<CouponReceipt>)
+private val CurrencyNames = mapOf(
+    "UGX" to "Ugandan Shilling", "USD" to "US Dollar", "GBP" to "British Pound", "EUR" to "Euro",
+    "KES" to "Kenyan Shilling", "TZS" to "Tanzanian Shilling", "RWF" to "Rwandan Franc",
+    "ZAR" to "South African Rand", "JPY" to "Japanese Yen", "CAD" to "Canadian Dollar", "AUD" to "Australian Dollar", "CHF" to "Swiss Franc"
+)
+private data class CurrencyRate(val currency: String, val rateToBase: Double, val effectiveDate: LocalDate)
+private data class CurrencySettings(
+    val baseCurrency: String = "UGX",
+    val enabledCurrencies: List<String> = listOf("UGX", "USD", "GBP", "EUR", "KES"),
+    val customCurrencyNames: Map<String, String> = emptyMap(),
+    val rates: List<CurrencyRate> = emptyList()
+) {
+    fun currencyName(code: String): String = customCurrencyNames[code] ?: CurrencyNames[code] ?: code
+}
+private data class BackupData(val bonds: List<Bond>, val couponReceipts: List<CouponReceipt>, val currencySettings: CurrencySettings = CurrencySettings())
 
 private fun couponEventKey(bondId: String, couponDate: LocalDate) = "$bondId|${couponDate.format(StorageDateFormat)}"
 
@@ -179,6 +196,7 @@ data class PricePosition(val label: String, val detail: String, val color: Color
 data class BondForm(
     val id: String? = null,
     val name: String = "",
+    val currency: String = "UGX",
     val face: String = "",
     val coupon: String = "",
     val price: String = "",
@@ -202,7 +220,7 @@ data class BondForm(
         val lot = PurchaseLot(purchaseDate = purchaseDate, faceValue = faceValue, cleanPrice = cleanPrice, purchaseDateConfirmed = purchaseDateConfirmed)
         return Bond(
             id = id ?: UUID.randomUUID().toString(), name = name.trim(), faceValue = faceValue, couponRate = couponRate, cleanPrice = cleanPrice,
-            maturityDate = maturityDate, nextCouponDate = nextCouponDate, frequency = frequency, taxRate = taxRate, lots = listOf(lot)
+            maturityDate = maturityDate, nextCouponDate = nextCouponDate, frequency = frequency, taxRate = taxRate, lots = listOf(lot), currency = currency
         )
     }
 }
@@ -246,12 +264,14 @@ fun BondWiseApp() {
     val context = LocalContext.current
     val bonds = remember { mutableStateListOf<Bond>().apply { addAll(loadBonds(context)) } }
     val couponReceipts = remember { mutableStateListOf<CouponReceipt>().apply { addAll(loadCouponReceipts(context)) } }
+    val currencySettings = remember { mutableStateOf(loadCurrencySettings(context)) }
     val pages = listOf("Overview", "Compare", "Calculator", "Coupons", "My bonds")
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showCurrencySettings by remember { mutableStateOf(false) }
     var editingBond by remember { mutableStateOf<Bond?>(null) }
     var scheduledBond by remember { mutableStateOf<Bond?>(null) }
     var lotsBond by remember { mutableStateOf<Bond?>(null) }
@@ -266,10 +286,14 @@ fun BondWiseApp() {
 
     fun save() = persistBonds(context, bonds)
     fun saveCouponReceipts() = persistCouponReceipts(context, couponReceipts)
+    fun saveCurrencySettings(updated: CurrencySettings) {
+        currencySettings.value = updated
+        persistCurrencySettings(context, updated)
+    }
     val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         if (uri != null) {
             backupNotice = try {
-                val json = createBackupJson(bonds, couponReceipts)
+                val json = createBackupJson(bonds, couponReceipts, currencySettings.value)
                 val stream = context.contentResolver.openOutputStream(uri) ?: error("Could not open the selected backup file.")
                 stream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
                 "Backup saved with ${bonds.size} ${if (bonds.size == 1) "bond" else "bonds"} and ${couponReceipts.size} coupon payment records."
@@ -322,6 +346,7 @@ fun BondWiseApp() {
             showExitConfirmation -> showExitConfirmation = false
             pendingBackupRestore != null -> pendingBackupRestore = null
             appMenuPage != null -> appMenuPage = null
+            showCurrencySettings -> showCurrencySettings = false
             purchasePendingDeletion != null -> purchasePendingDeletion = null
             bondPendingDeletion != null -> bondPendingDeletion = null
             purchasePendingEdit != null -> purchasePendingEdit = null
@@ -365,6 +390,7 @@ fun BondWiseApp() {
                     onOpenMenu = { appMenuPage = "main" },
                     onDismissMenu = { appMenuPage = null },
                     onOpenAppearance = { appMenuPage = "appearance" },
+                    onCurrencies = { appMenuPage = null; showCurrencySettings = true },
                     selectedTheme = palette.name,
                     onSelectTheme = { name ->
                         activePalette = paletteFor(name)
@@ -384,17 +410,17 @@ fun BondWiseApp() {
                 )
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { pageIndex ->
                     when (pages[pageIndex]) {
-                        "Overview" -> Overview(bonds, couponReceipts, onCompare = { scope.launch { pagerState.animateScrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
-                        "Compare" -> Compare(bonds, couponReceipts, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
-                        "Calculator" -> Calculator(onSave = ::addBond, onSchedule = { scheduledBond = it })
-                        "Coupons" -> Coupons(bonds, couponReceipts, onRecordReceipt = { recordCouponReceipt(it) }, onUndoReceipt = { undoCouponReceipt(it) })
+                        "Overview" -> Overview(bonds, couponReceipts, currencySettings.value, onCompare = { scope.launch { pagerState.animateScrollToPage(1) } }, onAdd = { showAdd = true }, onSchedule = { scheduledBond = it }, onLots = { lotsBond = it }, onAddPurchase = { purchaseBond = it })
+                        "Compare" -> Compare(bonds, couponReceipts, currencySettings.value, { showAdd = true }, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { lotsBond = it }, { purchaseBond = it })
+                        "Calculator" -> Calculator(currencySettings.value, onSave = ::addBond, onSchedule = { scheduledBond = it })
+                        "Coupons" -> Coupons(bonds, couponReceipts, currencySettings.value, onRecordReceipt = { recordCouponReceipt(it) }, onUndoReceipt = { undoCouponReceipt(it) })
                         else -> Portfolio(bonds, couponReceipts, { scheduledBond = it }, { editingBond = it }, { bondPendingDeletion = it }, { showAdd = true }, { lotsBond = it }, { purchaseBond = it })
                     }
                 }
             }
         }
-        if (showAdd) AddBondDialog(onDismiss = { showAdd = false }, onAdd = { addBond(it); showAdd = false })
-        editingBond?.let { bond -> EditBondDialog(bond, onDismiss = { editingBond = null }, onSave = { updated ->
+        if (showAdd) AddBondDialog(currencySettings.value, onDismiss = { showAdd = false }, onAdd = { addBond(it); showAdd = false })
+        editingBond?.let { bond -> EditBondDialog(bond, currencySettings.value, onDismiss = { editingBond = null }, onSave = { updated ->
             val updatedLots = if (bond.purchaseLots.size == 1) updated.purchaseLots.map { it.copy(id = bond.purchaseLots.first().id) } else bond.purchaseLots
             updateBond(updated.copy(lots = updatedLots, faceValue = updatedLots.sumOf { it.faceValue }, cleanPrice = updatedLots.sumOf { it.cleanPrice }))
             editingBond = null
@@ -402,11 +428,12 @@ fun BondWiseApp() {
         scheduledBond?.let { ScheduleDialog(it, onDismiss = { scheduledBond = null }) }
         if (showHelp) HelpDialog(onDismiss = { showHelp = false })
         if (showAbout) AboutDialog(context = context, onDismiss = { showAbout = false })
+        if (showCurrencySettings) CurrencySettingsDialog(currencySettings.value, bonds.map { it.currency }.distinct(), onDismiss = { showCurrencySettings = false }, onSave = { saveCurrencySettings(it); showCurrencySettings = false })
         lotsBond?.let { bond -> PurchaseLotsDialog(bond, onDismiss = { lotsBond = null }, onAdd = { lotsBond = null; purchaseBond = bond }, onEdit = { lot -> lotsBond = null; purchasePendingEdit = bond to lot }, onRemove = { lot -> purchasePendingDeletion = bond to lot }) }
         purchaseBond?.let { bond -> PurchaseLotDialog(bond, PurchaseLotForm(), "Add purchase lot", "Save purchase", onDismiss = { purchaseBond = null }, onSave = { lot -> addPurchase(bond.id, lot); purchaseBond = null }) }
         purchasePendingEdit?.let { (bond, lot) -> PurchaseLotDialog(bond, lot.toForm(), "Edit purchase", "Save changes", onDismiss = { purchasePendingEdit = null }, onSave = { updated -> updatePurchase(bond.id, updated); purchasePendingEdit = null; lotsBond = bonds.firstOrNull { it.id == bond.id } }) }
         bondPendingDeletion?.let { bond -> ConfirmDeleteDialog("Delete bond?", "${bond.name} and all its purchase records will be permanently removed.", onDismiss = { bondPendingDeletion = null }, onConfirm = { removeBond(bond); bondPendingDeletion = null }) }
-        purchasePendingDeletion?.let { (bond, lot) -> ConfirmDeleteDialog("Delete purchase?", "This purchase record (${money(lot.cleanPrice)}) will be permanently removed from ${bond.name}.", onDismiss = { purchasePendingDeletion = null }, onConfirm = { removePurchase(bond.id, lot.id); purchasePendingDeletion = null; lotsBond = bonds.firstOrNull { it.id == bond.id } }) }
+        purchasePendingDeletion?.let { (bond, lot) -> ConfirmDeleteDialog("Delete purchase?", "This purchase record (${money(lot.cleanPrice, bond.currency)}) will be permanently removed from ${bond.name}.", onDismiss = { purchasePendingDeletion = null }, onConfirm = { removePurchase(bond.id, lot.id); purchasePendingDeletion = null; lotsBond = bonds.firstOrNull { it.id == bond.id } }) }
         if (showExitConfirmation) AlertDialog(
             onDismissRequest = { showExitConfirmation = false },
             title = { Text("Exit BondWise?") },
@@ -418,7 +445,7 @@ fun BondWiseApp() {
             AlertDialog(
                 onDismissRequest = { pendingBackupRestore = null },
                 title = { Text("Restore backup?") },
-                text = { Text("This will replace the ${bonds.size} bonds and ${couponReceipts.size} coupon payment records on this device with ${backup.bonds.size} bonds and ${backup.couponReceipts.size} coupon payment records from the backup.") },
+                text = { Text("This will replace your bonds, coupon payment records, currencies, base currency and exchange rates with the backup contents.") },
                 confirmButton = {
                     TextButton(onClick = {
                         bonds.clear()
@@ -427,6 +454,7 @@ fun BondWiseApp() {
                         couponReceipts.addAll(backup.couponReceipts)
                         save()
                         saveCouponReceipts()
+                        saveCurrencySettings(backup.currencySettings)
                         pendingBackupRestore = null
                         backupNotice = "Backup restored successfully."
                     }) { Text("Replace and restore", color = PremiumRed) }
@@ -450,6 +478,7 @@ fun BondWiseApp() {
     onOpenMenu: () -> Unit,
     onDismissMenu: () -> Unit,
     onOpenAppearance: () -> Unit,
+    onCurrencies: () -> Unit,
     selectedTheme: String,
     onSelectTheme: (String) -> Unit,
     onHelp: () -> Unit,
@@ -487,6 +516,7 @@ fun BondWiseApp() {
                 } else {
                     DropdownMenuItem(text = { Text("Back up data") }, leadingIcon = { MenuGlyph("⬆") }, onClick = onExportBackup)
                     DropdownMenuItem(text = { Text("Restore data") }, leadingIcon = { MenuGlyph("↻") }, onClick = onImportBackup)
+                    DropdownMenuItem(text = { Text("Currencies & rates") }, leadingIcon = { MenuGlyph("¤") }, onClick = onCurrencies)
                     DropdownMenuItem(text = { Text("Appearance") }, leadingIcon = { MenuGlyph("◐") }, onClick = onOpenAppearance)
                     DropdownMenuItem(text = { Text("Help") }, leadingIcon = { MenuGlyph("?") }, onClick = onHelp)
                     DropdownMenuItem(text = { Text("About") }, leadingIcon = { MenuGlyph("ⓘ") }, onClick = onAbout)
@@ -498,6 +528,101 @@ fun BondWiseApp() {
 
 @Composable private fun MenuGlyph(glyph: String) {
     Text(glyph, color = Teal, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
+}
+
+@Composable private fun CurrencySettingsDialog(initial: CurrencySettings, currenciesInUse: List<String>, onDismiss: () -> Unit, onSave: (CurrencySettings) -> Unit) {
+    var base by remember { mutableStateOf(initial.baseCurrency) }
+    var enabled by remember { mutableStateOf(initial.enabledCurrencies.toSet()) }
+    var customNames by remember { mutableStateOf(initial.customCurrencyNames) }
+    val rateValues = remember { mutableStateMapOf<String, String>().apply { initial.rates.forEach { put(it.currency, it.rateToBase.toString()) } } }
+    val rateDates = remember { mutableStateMapOf<String, LocalDate>().apply { initial.rates.forEach { put(it.currency, it.effectiveDate) } } }
+    var newCode by remember { mutableStateOf("") }
+    var newName by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var baseExpanded by remember { mutableStateOf(false) }
+    var baseChanged by remember { mutableStateOf(false) }
+    val names = CurrencyNames + customNames
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Currencies & rates") },
+        text = {
+            Column(Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Base currency", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Box {
+                    OutlinedButton(onClick = { baseExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text("$base · ${names[base] ?: base}", modifier = Modifier.weight(1f)); Text("▾") }
+                    DropdownMenu(expanded = baseExpanded, onDismissRequest = { baseExpanded = false }) {
+                        enabled.sorted().forEach { code -> DropdownMenuItem(text = { Text("$code · ${names[code] ?: code}") }, onClick = {
+                            if (base != code) {
+                                base = code
+                                baseChanged = true
+                                rateValues.clear()
+                                rateDates.clear()
+                                enabled.filter { it != code }.forEach { rateDates[it] = LocalDate.now() }
+                            }
+                            baseExpanded = false
+                        }) }
+                    }
+                }
+                Text("The base currency is also the default when you book a new bond. Existing bonds keep their own currency.", color = Muted, fontSize = 11.sp)
+                HorizontalDivider()
+                Text("Enabled currencies", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                (CurrencyNames.keys + customNames.keys).distinct().sorted().forEach { code ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = code in enabled, enabled = code != base, onCheckedChange = { checked ->
+                            enabled = if (checked) enabled + code else enabled - code
+                            if (checked && code != base && rateDates[code] == null) rateDates[code] = LocalDate.now()
+                        })
+                        Text(code, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(42.dp))
+                        Text(names[code] ?: code, color = Muted, fontSize = 12.sp)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(newCode, { newCode = it.uppercase(Locale.ROOT).filter(Char::isLetter).take(3) }, label = { Text("Code") }, singleLine = true, modifier = Modifier.width(90.dp))
+                    OutlinedTextField(newName, { newName = it }, label = { Text("Currency name") }, singleLine = true, modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        val code = newCode.trim()
+                        if (!code.matches(Regex("[A-Z]{3}")) || code in CurrencyNames || code in customNames) error = "Enter a new three-letter currency code and name."
+                        else if (newName.isBlank()) error = "Enter a name for the currency."
+                        else { customNames = customNames + (code to newName.trim()); enabled = enabled + code; rateDates[code] = LocalDate.now(); newCode = ""; newName = ""; error = null }
+                    }) { Text("Add") }
+                }
+                HorizontalDivider()
+                Text("Manual exchange rates", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("Enter how many units of the base currency equal 1 unit of each enabled currency.", color = Muted, fontSize = 11.sp)
+                (enabled + currenciesInUse).distinct().sorted().filter { it != base }.forEach { code ->
+                    Text("1 $code =", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = rateValues[code] ?: "",
+                        onValueChange = { rateValues[code] = it.filter { char -> char.isDigit() || char == '.' } },
+                        label = { Text("Amount in $base") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    DateField("Rate effective date", rateDates[code] ?: LocalDate.now()) { rateDates[code] = it }
+                }
+                error?.let { Text(it, color = PremiumRed, fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val rateCurrencies = (enabled + currenciesInUse).distinct().filter { it != base }
+                val rates = if (baseChanged) mutableListOf() else initial.rates.filter { it.currency !in rateCurrencies || it.currency == base }.toMutableList()
+                var validationError: String? = null
+                rateCurrencies.forEach { code ->
+                    val raw = rateValues[code].orEmpty().replace(",", "").trim()
+                    if (raw.isNotEmpty()) {
+                        val rate = raw.toDoubleOrNull()
+                        if (rate == null || rate <= 0 || !rate.isFinite()) validationError = "Exchange rates must be positive numbers."
+                        else rates.add(CurrencyRate(code, rate, rateDates[code] ?: LocalDate.now()))
+                    }
+                }
+                if (validationError != null) error = validationError
+                else onSave(CurrencySettings(base, enabled.toList().sorted(), customNames, rates))
+            }) { Text("Save settings") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable private fun BondWiseBottomBar(pages: List<String>, selectedPage: Int, onSelect: (Int) -> Unit) {
@@ -524,7 +649,7 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun Overview(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
+@Composable private fun Overview(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, currencySettings: CurrencySettings, onCompare: () -> Unit, onAdd: () -> Unit, onSchedule: (Bond) -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -541,9 +666,10 @@ fun BondWiseApp() {
         } else {
             val best = bonds.maxByOrNull { estimatedReturn(it, afterTax = true) ?: Double.NEGATIVE_INFINITY }
             val receivedEventKeys = couponReceipts.mapTo(mutableSetOf()) { it.eventKey }
-            val totalFaceValue = bonds.sumOf { it.totalFaceValue }
-            val totalNetCoupons = bonds.sumOf { it.annualNetCoupon }
-            val totalPurchasePrice = bonds.sumOf { it.totalCleanPrice }
+            val totalFaceValue = bonds.sumOf { currencySettings.convert(it.totalFaceValue, it.currency) ?: 0.0 }
+            val totalNetCoupons = bonds.sumOf { currencySettings.convert(it.annualNetCoupon, it.currency) ?: 0.0 }
+            val totalPurchasePrice = bonds.sumOf { currencySettings.convert(it.totalCleanPrice, it.currency) ?: 0.0 }
+            val missingRateCount = bonds.count { currencySettings.rateFor(it.currency) == null }
             val nextCoupon = bonds.flatMap { bond ->
                 couponSchedule(bond).filter { it.grossCoupon > 0 && couponEventKey(bond.id, it.date) !in receivedEventKeys }.map { ScheduledCoupon(bond, it) }
             }.minByOrNull { it.cashflow.date }
@@ -555,31 +681,32 @@ fun BondWiseApp() {
                     ).padding(17.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Face Value Held", color = BannerMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
-                    Text(money(totalFaceValue), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Face Value Held · ${currencySettings.baseCurrency}", color = BannerMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
+                    Text(money(totalFaceValue, currencySettings.baseCurrency), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text("Annual Net Coupons", color = BannerMuted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            Text(money(totalNetCoupons), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(money(totalNetCoupons, currencySettings.baseCurrency), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                             Text("Total Purchase Price", color = BannerMuted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            Text(money(totalPurchasePrice), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(money(totalPurchasePrice, currencySettings.baseCurrency), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
+                if (missingRateCount > 0) Text("${missingRateCount} ${if (missingRateCount == 1) "bond is" else "bonds are"} excluded from base-currency totals until an exchange rate is entered.", color = Muted, fontSize = 10.sp)
             }
             item {
                 val palette = listOf(Teal, Color(0xFF48A5E6), Color(0xFF7968D9), Color(0xFFE6A64B), Color(0xFFDA6D88))
-                val sortedAllocation = bonds.sortedByDescending { it.totalFaceValue }
-                val visibleAllocation = sortedAllocation.take(4).mapIndexed { index, bond -> Triple(bond.name, bond.totalFaceValue, palette[index % palette.size]) }.toMutableList()
-                val otherValue = sortedAllocation.drop(4).sumOf { it.totalFaceValue }
+                val sortedAllocation = bonds.mapNotNull { bond -> currencySettings.convert(bond.totalFaceValue, bond.currency)?.let { bond to it } }.sortedByDescending { it.second }
+                val visibleAllocation = sortedAllocation.take(4).mapIndexed { index, entry -> Triple(entry.first.name, entry.second, palette[index % palette.size]) }.toMutableList()
+                val otherValue = sortedAllocation.drop(4).sumOf { it.second }
                 if (otherValue > 0) visibleAllocation.add(Triple("Other bonds", otherValue, palette.last()))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Portfolio Allocation", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("By Face Value", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text("By Face Value · ${currencySettings.baseCurrency}", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                     CardBox(modifier = Modifier.clickable(onClickLabel = "View Your Bonds") {
                         coroutineScope.launch { listState.animateScrollToItem(yourBondsHeaderIndex) }
@@ -587,7 +714,7 @@ fun BondWiseApp() {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             Box(Modifier.size(94.dp), contentAlignment = Alignment.Center) {
                                 Canvas(Modifier.fillMaxSize()) {
-                                    val positiveTotal = sortedAllocation.sumOf { it.totalFaceValue.coerceAtLeast(0.0) }
+                                    val positiveTotal = sortedAllocation.sumOf { it.second.coerceAtLeast(0.0) }
                                     if (positiveTotal > 0) {
                                         var start = -90f
                                         visibleAllocation.forEachIndexed { index, entry ->
@@ -602,11 +729,11 @@ fun BondWiseApp() {
                                     drawCircle(SurfaceColor, radius = size.minDimension * 0.29f)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                                    Text("${sortedAllocation.size} ${if (sortedAllocation.size == 1) "Bond" else "Bonds"}", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                val positiveTotal = totalFaceValue.coerceAtLeast(0.0)
+                                    val positiveTotal = sortedAllocation.sumOf { it.second }.coerceAtLeast(0.0)
                                 visibleAllocation.forEach { entry ->
                                     val value = entry.second
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -619,6 +746,7 @@ fun BondWiseApp() {
                         }
                     }
                 }
+                if (missingRateCount > 0) Text("Allocation excludes bonds without a saved ${currencySettings.baseCurrency} exchange rate.", color = Muted, fontSize = 10.sp)
             }
             if (nextCoupon != null) {
                 item {
@@ -635,8 +763,8 @@ fun BondWiseApp() {
                                     Text("${nextCoupon.cashflow.date.format(DisplayDateFormat)} · ${daysRemaining(nextCoupon.cashflow.date)}", fontWeight = FontWeight.Bold, color = Teal, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
-                                    Text(money(scheduledPayment), color = Teal, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1)
-                                    Text(if (nextCoupon.cashflow.principal > 0) "Coupon + Principal" else "Estimated Coupon", color = Muted, fontSize = 9.sp)
+                                    Text(currencySettings.moneyInBase(scheduledPayment, nextCoupon.bond.currency), color = Teal, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1)
+                                    Text(if (currencySettings.rateFor(nextCoupon.bond.currency) == null) "Rate needed" else if (nextCoupon.cashflow.principal > 0) "Coupon + Principal" else "Estimated Coupon", color = Muted, fontSize = 9.sp)
                                 }
                             }
                         }
@@ -676,15 +804,15 @@ fun BondWiseApp() {
 }
 
 @Composable private fun Compare(
-    bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onAdd: () -> Unit,
+    bonds: List<Bond>, couponReceipts: List<CouponReceipt>, currencySettings: CurrencySettings, onAdd: () -> Unit,
     onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit,
     onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit
 ) {
     var compareMode by remember { mutableStateOf("Saved") }
-    var firstForm by remember { mutableStateOf(BondForm(name = "Bond A")) }
-    var secondForm by remember { mutableStateOf(BondForm(name = "Bond B")) }
+    var firstForm by remember(currencySettings.baseCurrency) { mutableStateOf(BondForm(name = "Bond A", currency = currencySettings.baseCurrency)) }
+    var secondForm by remember(currencySettings.baseCurrency) { mutableStateOf(BondForm(name = "Bond B", currency = currencySettings.baseCurrency)) }
     if (compareMode == "Quick compare") {
-        QuickCompare(firstForm, { firstForm = it }, secondForm, { secondForm = it }, onSavedBonds = { compareMode = "Saved" })
+        QuickCompare(firstForm, { firstForm = it }, secondForm, { secondForm = it }, currencySettings, onSavedBonds = { compareMode = "Saved" })
         return
     }
     val sorted = bonds.sortedWith(compareBy<Bond> { it.purchaseLots.minOf { lot -> lot.purchaseDate } }.thenBy { it.name.lowercase(Locale.ROOT) })
@@ -709,6 +837,7 @@ fun BondWiseApp() {
 @Composable private fun QuickCompare(
     first: BondForm, onFirst: (BondForm) -> Unit,
     second: BondForm, onSecond: (BondForm) -> Unit,
+    currencySettings: CurrencySettings,
     onSavedBonds: () -> Unit
 ) {
     val firstBond = first.toBond()
@@ -723,8 +852,8 @@ fun BondWiseApp() {
             }
             Text("Enter two bonds to compare their estimated yields and coupon income. These entries stay here and are not added to My bonds.", color = Muted, fontSize = 12.sp)
         }
-        item { Text("Bond A", color = Teal, fontWeight = FontWeight.Bold); BondFields(first, onFirst) }
-        item { Text("Bond B", color = Teal, fontWeight = FontWeight.Bold); BondFields(second, onSecond) }
+        item { Text("Bond A", color = Teal, fontWeight = FontWeight.Bold); BondFields(first, onFirst, currencySettings.enabledCurrencies, currencyNames = currencySettings.customCurrencyNames) }
+        item { Text("Bond B", color = Teal, fontWeight = FontWeight.Bold); BondFields(second, onSecond, currencySettings.enabledCurrencies, currencyNames = currencySettings.customCurrencyNames) }
         if (firstBond != null && secondBond != null) {
             item {
                 CardBox {
@@ -732,12 +861,12 @@ fun BondWiseApp() {
                     Spacer(Modifier.height(8.dp))
                     CompareResultHeader(firstBond.name, secondBond.name)
                     CompareResultRow("Coupon rate", "${firstBond.couponRate.fmt()}%", "${secondBond.couponRate.fmt()}%")
-                    CompareResultRow("Face Value", money(firstBond.totalFaceValue), money(secondBond.totalFaceValue))
-                    CompareResultRow("Purchase Price", money(firstBond.totalCleanPrice), money(secondBond.totalCleanPrice))
-                    ComparePricePositionRow(firstBond, secondBond)
+                    CompareResultRow("Face Value (${currencySettings.baseCurrency})", currencySettings.moneyInBase(firstBond.totalFaceValue, firstBond.currency), currencySettings.moneyInBase(secondBond.totalFaceValue, secondBond.currency))
+                    CompareResultRow("Purchase Price (${currencySettings.baseCurrency})", currencySettings.moneyInBase(firstBond.totalCleanPrice, firstBond.currency), currencySettings.moneyInBase(secondBond.totalCleanPrice, secondBond.currency))
+                    ComparePricePositionRow(firstBond, secondBond, currencySettings)
                     CompareResultRow(if (firstBond.purchaseLots.size > 1 || secondBond.purchaseLots.size > 1) "Estimated Net Return" else "Estimated Net YTM", "${estimatedReturn(firstBond, true)?.fmt() ?: "—"}%", "${estimatedReturn(secondBond, true)?.fmt() ?: "—"}%")
                     CompareResultRow(if (firstBond.purchaseLots.size > 1 || secondBond.purchaseLots.size > 1) "Estimated Gross Return" else "Estimated Gross YTM", "${estimatedReturn(firstBond, false)?.fmt() ?: "—"}%", "${estimatedReturn(secondBond, false)?.fmt() ?: "—"}%")
-                    CompareResultRow("Net annual coupon", money(firstBond.annualNetCoupon), money(secondBond.annualNetCoupon))
+                    CompareResultRow("Net annual coupon (${currencySettings.baseCurrency})", currencySettings.moneyInBase(firstBond.annualNetCoupon, firstBond.currency), currencySettings.moneyInBase(secondBond.annualNetCoupon, secondBond.currency))
                     CompareResultRow("Net current yield", "${firstBond.netCurrentYield.fmt()}%", "${secondBond.netCurrentYield.fmt()}%")
                     CompareResultRow("Maturity", firstBond.maturityDate.format(DisplayDateFormat), secondBond.maturityDate.format(DisplayDateFormat))
                     Spacer(Modifier.height(8.dp))
@@ -781,13 +910,15 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun ComparePricePositionRow(first: Bond, second: Bond) {
+@Composable private fun ComparePricePositionRow(first: Bond, second: Bond, currencySettings: CurrencySettings) {
     val firstPosition = premiumDiscount(first)
     val secondPosition = premiumDiscount(second)
+    val firstBaseAmount = currencySettings.moneyInBase(kotlin.math.abs(first.totalCleanPrice - first.totalFaceValue), first.currency)
+    val secondBaseAmount = currencySettings.moneyInBase(kotlin.math.abs(second.totalCleanPrice - second.totalFaceValue), second.currency)
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Price vs face", Modifier.weight(1.2f), color = Muted, fontSize = 11.sp)
-        PricePositionCell(firstPosition, Modifier.weight(1f))
-        PricePositionCell(secondPosition, Modifier.weight(1f))
+        PricePositionCell(firstPosition.copy(detail = firstBaseAmount), Modifier.weight(1f))
+        PricePositionCell(secondPosition.copy(detail = secondBaseAmount), Modifier.weight(1f))
     }
 }
 
@@ -798,18 +929,18 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun Calculator(onSave: (Bond) -> Unit, onSchedule: (Bond) -> Unit) {
-    var form by remember { mutableStateOf(BondForm()) }
+@Composable private fun Calculator(currencySettings: CurrencySettings, onSave: (Bond) -> Unit, onSchedule: (Bond) -> Unit) {
+    var form by remember(currencySettings.baseCurrency) { mutableStateOf(BondForm(currency = currencySettings.baseCurrency)) }
     val bond = form.toBond()
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionTitle("Bond calculator", "YOUR INPUTS") }
-        item { BondFields(form, { form = it }) }
+        item { BondFields(form, { form = it }, currencySettings.enabledCurrencies, currencyNames = currencySettings.customCurrencyNames) }
         if (bond != null) {
             item {
                 CardBox {
                     Text("Annual coupon income", color = Muted, fontSize = 12.sp)
-                    Text(money(bond.annualGrossCoupon), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("After ${bond.taxRate.fmt()}% tax: ${money(bond.annualNetCoupon)} per year", color = Muted, fontSize = 12.sp)
+                    Text(money(bond.annualGrossCoupon, bond.currency), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("After ${bond.taxRate.fmt()}% tax: ${money(bond.annualNetCoupon, bond.currency)} per year", color = Muted, fontSize = 12.sp)
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         MetricCard("Gross current yield", "${bond.grossCurrentYield.fmt()}%", Modifier.weight(1f))
@@ -831,6 +962,24 @@ fun BondWiseApp() {
     }
 }
 
+@Composable private fun CurrencySelector(value: String, currencies: List<String>, customNames: Map<String, String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        Text("Currency", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Box {
+            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+                Text("$value · ${customNames[value] ?: CurrencyNames[value] ?: value}", modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                Text("▾")
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                currencies.distinct().sorted().forEach { code ->
+                    DropdownMenuItem(text = { Text("$code · ${customNames[code] ?: CurrencyNames[code] ?: code}") }, onClick = { onSelect(code); expanded = false })
+                }
+            }
+        }
+    }
+}
+
 @Composable private fun Portfolio(bonds: List<Bond>, couponReceipts: List<CouponReceipt>, onSchedule: (Bond) -> Unit, onEdit: (Bond) -> Unit, onRemove: (Bond) -> Unit, onAdd: () -> Unit, onLots: (Bond) -> Unit, onAddPurchase: (Bond) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("My bonds") }
@@ -843,13 +992,15 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit, includePurchaseDetails: Boolean = true) {
+@Composable private fun BondFields(form: BondForm, onChange: (BondForm) -> Unit, enabledCurrencies: List<String>, includePurchaseDetails: Boolean = true, currencyNames: Map<String, String> = emptyMap()) {
     CardBox {
         TextFieldBlock("Bond name", form.name, { onChange(form.copy(name = it)) }, KeyboardType.Text)
-        if (includePurchaseDetails) TextFieldBlock("Face Value", form.face, { onChange(form.copy(face = it)) }, KeyboardType.NumberPassword, groupThousands = true)
+        if (form.id == null) CurrencySelector(form.currency, enabledCurrencies.distinct(), currencyNames) { onChange(form.copy(currency = it)) }
+        else Text("Currency: ${form.currency}", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        if (includePurchaseDetails) TextFieldBlock("Face Value (${form.currency})", form.face, { onChange(form.copy(face = it)) }, KeyboardType.NumberPassword, groupThousands = true)
         TextFieldBlock("Annual coupon rate (%)", form.coupon, { onChange(form.copy(coupon = it)) }, KeyboardType.Decimal)
         if (includePurchaseDetails) {
-            TextFieldBlock("Purchase Price (UGX)", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, supporting = "Enter the total amount paid to the bank.", groupThousands = true)
+            TextFieldBlock("Purchase Price (${form.currency})", form.price, { onChange(form.copy(price = it)) }, KeyboardType.NumberPassword, supporting = "Enter the total amount paid to the bank.", groupThousands = true)
             DateField("Purchase date", form.purchaseDate) { onChange(form.copy(purchaseDate = it, purchaseDateConfirmed = true)) }
         } else {
             Text("Purchase lots are unchanged here. Use Purchases to add or remove a tranche.", color = Muted, fontSize = 11.sp)
@@ -869,8 +1020,8 @@ fun BondWiseApp() {
     }
 }
 
-@Composable private fun AddBondDialog(onDismiss: () -> Unit, onAdd: (Bond) -> Unit) {
-    var form by remember { mutableStateOf(BondForm()) }
+@Composable private fun AddBondDialog(currencySettings: CurrencySettings, onDismiss: () -> Unit, onAdd: (Bond) -> Unit) {
+    var form by remember(currencySettings.baseCurrency) { mutableStateOf(BondForm(currency = currencySettings.baseCurrency)) }
     var error by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -878,7 +1029,7 @@ fun BondWiseApp() {
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Enter the bond terms and its first purchase lot. You can add later purchases from My bonds.", color = Muted, fontSize = 11.sp)
-                BondFields(form, { form = it })
+                BondFields(form, { form = it }, currencySettings.enabledCurrencies, currencyNames = currencySettings.customCurrencyNames)
                 if (error) Text(form.validationMessage(), color = PremiumRed, fontSize = 12.sp)
             }
         },
@@ -897,8 +1048,8 @@ fun BondWiseApp() {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(bond.name, color = Teal, fontWeight = FontWeight.Bold)
                 DateField("Purchase date", form.purchaseDate) { form = form.copy(purchaseDate = it, purchaseDateConfirmed = true) }
-                TextFieldBlock("Face value acquired (UGX)", form.faceValue, { form = form.copy(faceValue = it) }, KeyboardType.NumberPassword, groupThousands = true)
-                TextFieldBlock("Purchase price (UGX)", form.cleanPrice, { form = form.copy(cleanPrice = it) }, KeyboardType.NumberPassword, supporting = "Enter the total amount paid to the bank.", groupThousands = true)
+                TextFieldBlock("Face value acquired (${bond.currency})", form.faceValue, { form = form.copy(faceValue = it) }, KeyboardType.NumberPassword, groupThousands = true)
+                TextFieldBlock("Purchase price (${bond.currency})", form.cleanPrice, { form = form.copy(cleanPrice = it) }, KeyboardType.NumberPassword, supporting = "Enter the total amount paid to the bank.", groupThousands = true)
                 if (error) Text("Enter positive face value and purchase price, and a purchase date that is not in the future or after maturity.", color = Color(0xFF9A5B00), fontSize = 12.sp)
             }
         },
@@ -914,17 +1065,17 @@ fun BondWiseApp() {
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(bond.name, color = Teal, fontWeight = FontWeight.Bold)
-                Text("Combined face value: ${money(bond.totalFaceValue)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                Text("Total purchase price: ${money(bond.totalCleanPrice)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Combined face value: ${money(bond.totalFaceValue, bond.currency)}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text("Total purchase price: ${money(bond.totalCleanPrice, bond.currency)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 bond.purchaseLots.sortedBy { it.purchaseDate }.forEachIndexed { index, lot ->
                     CardBox {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                             Column(Modifier.weight(1f)) {
                 Text("Lot ${index + 1} · ${if (lot.purchaseDateConfirmed) lot.purchaseDate.format(DisplayDateFormat) else "Purchase date needs review"}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("Face value: ${money(lot.faceValue)}", fontSize = 11.sp)
-                                Text("Purchase price: ${money(lot.cleanPrice)}", fontSize = 11.sp)
+                                Text("Face value: ${money(lot.faceValue, bond.currency)}", fontSize = 11.sp)
+                                Text("Purchase price: ${money(lot.cleanPrice, bond.currency)}", fontSize = 11.sp)
                                 val difference = lot.cleanPrice - lot.faceValue
-                                val label = when { kotlin.math.abs(difference) < 0.005 -> "At face value"; difference > 0 -> "Premium ${money(difference)}"; else -> "Discount ${money(-difference)}" }
+                                val label = when { kotlin.math.abs(difference) < 0.005 -> "At face value"; difference > 0 -> "Premium ${money(difference, bond.currency)}"; else -> "Discount ${money(-difference, bond.currency)}" }
                                 val color = when { kotlin.math.abs(difference) < 0.005 -> Muted; difference > 0 -> PremiumRed; else -> DiscountGreen }
                                 Text(label, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
                             }
@@ -942,12 +1093,12 @@ fun BondWiseApp() {
     )
 }
 
-@Composable private fun EditBondDialog(bond: Bond, onDismiss: () -> Unit, onSave: (Bond) -> Unit) {
+@Composable private fun EditBondDialog(bond: Bond, currencySettings: CurrencySettings, onDismiss: () -> Unit, onSave: (Bond) -> Unit) {
     var form by remember(bond.id) { mutableStateOf(bond.toForm()) }
     var error by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit bond") }, text = {
         Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            BondFields(form, { form = it }, includePurchaseDetails = bond.purchaseLots.size == 1)
+            BondFields(form, { form = it }, (currencySettings.enabledCurrencies + bond.currency).distinct(), includePurchaseDetails = bond.purchaseLots.size == 1, currencyNames = currencySettings.customCurrencyNames)
             if (error) Text(form.validationMessage(), color = PremiumRed, fontSize = 12.sp)
         }
     }, confirmButton = { TextButton(onClick = { val updated = form.toBond(); if (updated == null) error = true else onSave(updated) }) { Text("Save changes") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
@@ -1048,8 +1199,8 @@ fun BondWiseApp() {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                MetricCard("Face Value", money(bond.totalFaceValue), Modifier.weight(1f))
-                MetricCard("Annual Net Coupon", money(bond.annualNetCoupon), Modifier.weight(1f))
+                MetricCard("Face Value", money(bond.totalFaceValue, bond.currency), Modifier.weight(1f))
+                MetricCard("Annual Net Coupon", money(bond.annualNetCoupon, bond.currency), Modifier.weight(1f))
             }
             if (collapsible) {
                 Text(if (expanded) "Hide details  ⌃" else "View details  ⌄", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
@@ -1058,7 +1209,7 @@ fun BondWiseApp() {
         if (expanded || !collapsible) {
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricCard("Purchase Price", money(bond.totalCleanPrice), Modifier.weight(1f))
+                MetricCard("Purchase Price", money(bond.totalCleanPrice, bond.currency), Modifier.weight(1f))
                 MetricCard(position.label, position.detail, Modifier.weight(1f), position.color, position.color)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 7.dp)) {
@@ -1103,13 +1254,13 @@ fun BondWiseApp() {
                             )
                         }
                         if (row.grossCoupon > 0) {
-                            Text("Gross coupon: ${money(row.grossCoupon)}", fontSize = 11.sp)
-                            Text("Tax withheld (${bond.taxRate.fmt()}%): ${money(row.tax)}", fontSize = 11.sp, color = Muted)
-                            Text("Net coupon: ${money(row.netCoupon)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Gross coupon: ${money(row.grossCoupon, bond.currency)}", fontSize = 11.sp)
+                            Text("Tax withheld (${bond.taxRate.fmt()}%): ${money(row.tax, bond.currency)}", fontSize = 11.sp, color = Muted)
+                            Text("Net coupon: ${money(row.netCoupon, bond.currency)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                         if (row.principal > 0) {
-                            Text("Principal repayment (no tax): ${money(row.principal)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Total estimated payment: ${money(row.netCoupon + row.principal)}", color = Teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Principal repayment (no tax): ${money(row.principal, bond.currency)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Total estimated payment: ${money(row.netCoupon + row.principal, bond.currency)}", color = Teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1125,6 +1276,7 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
 @Composable private fun Coupons(
     bonds: List<Bond>,
     receipts: List<CouponReceipt>,
+    currencySettings: CurrencySettings,
     onRecordReceipt: (CouponReceipt) -> Unit,
     onUndoReceipt: (CouponReceipt) -> Unit
 ) {
@@ -1142,12 +1294,13 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
     }.sortedBy { it.cashflow.date }
     val history = receipts.sortedWith(compareByDescending<CouponReceipt> { it.receivedDate }.thenByDescending { it.couponDate })
     val interestCouponTotal = if (showHistory) {
-        history.sumOf { (it.amountReceived - it.principalRepaid).coerceAtLeast(0.0) }
+        history.sumOf { currencySettings.convert((it.amountReceived - it.principalRepaid).coerceAtLeast(0.0), it.currency) ?: 0.0 }
     } else {
-        scheduled.sumOf { it.cashflow.netCoupon }
+        scheduled.sumOf { currencySettings.convert(it.cashflow.netCoupon, it.bond.currency) ?: 0.0 }
     }
-    val principalTotal = if (showHistory) history.sumOf { it.principalRepaid } else scheduled.sumOf { it.cashflow.principal }
-    val paymentTotal = if (showHistory) history.sumOf { it.amountReceived } else scheduled.sumOf { it.cashflow.netCoupon + it.cashflow.principal }
+    val principalTotal = if (showHistory) history.sumOf { currencySettings.convert(it.principalRepaid, it.currency) ?: 0.0 } else scheduled.sumOf { currencySettings.convert(it.cashflow.principal, it.bond.currency) ?: 0.0 }
+    val paymentTotal = if (showHistory) history.sumOf { currencySettings.convert(it.amountReceived, it.currency) ?: 0.0 } else scheduled.sumOf { currencySettings.convert(it.cashflow.netCoupon + it.cashflow.principal, it.bond.currency) ?: 0.0 }
+    val missingRateCount = if (showHistory) history.count { currencySettings.rateFor(it.currency) == null } else scheduled.count { currencySettings.rateFor(it.bond.currency) == null }
 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -1159,11 +1312,12 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
             }
             CardBox {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    CouponSummaryMetric("Interest coupons", interestCouponTotal, Modifier.weight(1f))
-                    CouponSummaryMetric("Principal repayment", principalTotal, Modifier.weight(1f))
-                    CouponSummaryMetric(if (showHistory) "Total received" else "Total scheduled", paymentTotal, Modifier.weight(1f))
+                    CouponSummaryMetric("Interest coupons", interestCouponTotal, currencySettings.baseCurrency, Modifier.weight(1f))
+                    CouponSummaryMetric("Principal repayment", principalTotal, currencySettings.baseCurrency, Modifier.weight(1f))
+                    CouponSummaryMetric(if (showHistory) "Total received" else "Total scheduled", paymentTotal, currencySettings.baseCurrency, Modifier.weight(1f))
                 }
             }
+            if (missingRateCount > 0) Text("${missingRateCount} payment ${if (missingRateCount == 1) "entry is" else "entries are"} excluded from these totals because an exchange rate is missing.", color = Muted, fontSize = 10.sp)
         }
         if (!showHistory && scheduled.isEmpty()) {
             item {
@@ -1187,17 +1341,17 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                         }
                     }
                     if (receipt.principalRepaid > 0) {
-                        Text("Principal repaid (no tax): ${money(receipt.principalRepaid)}", color = Muted, fontSize = 10.sp)
-                        Text("Net coupon estimate: ${money(receipt.estimatedNetAmount - receipt.principalRepaid)}", color = Muted, fontSize = 10.sp)
+                        Text("Principal repaid (no tax): ${money(receipt.principalRepaid, receipt.currency)}", color = Muted, fontSize = 10.sp)
+                        Text("Net coupon estimate: ${money(receipt.estimatedNetAmount - receipt.principalRepaid, receipt.currency)}", color = Muted, fontSize = 10.sp)
                     }
-                    Text("One payment · Combined face balance ${money(receipt.faceBalanceAtCoupon)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                    Text("One payment · Combined face balance ${money(receipt.faceBalanceAtCoupon, receipt.currency)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                         Column {
                             Text("Net amount received", color = Muted, fontSize = 10.sp)
-                            Text(money(receipt.amountReceived), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(money(receipt.amountReceived, receipt.currency), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                         if (kotlin.math.abs(receipt.amountReceived - receipt.estimatedNetAmount) >= 0.5) {
-                            Text("Estimate ${money(receipt.estimatedNetAmount)}", color = Muted, fontSize = 9.sp)
+                            Text("Estimate ${money(receipt.estimatedNetAmount, receipt.currency)}", color = Muted, fontSize = 9.sp)
                         }
                     }
                     TextButton(onClick = { receiptToUndo = receipt }, modifier = Modifier.align(Alignment.End)) {
@@ -1226,18 +1380,18 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                             Text(statusLabel, color = statusColor, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
                         }
                     }
-                    Text("One payment · Combined face balance ${money(faceBalance)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                    Text("One payment · Combined face balance ${money(faceBalance, payment.bond.currency)}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                         Column {
                             Text(if (payment.cashflow.principal > 0) "Estimated total payment" else "Estimated net coupon", color = Muted, fontSize = 10.sp)
-                            Text(money(payment.cashflow.netCoupon + payment.cashflow.principal), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(money(payment.cashflow.netCoupon + payment.cashflow.principal, payment.bond.currency), color = Teal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             if (payment.cashflow.grossCoupon > 0) {
-                                Text("Gross coupon ${money(payment.cashflow.grossCoupon)}", color = Muted, fontSize = 9.sp)
-                                Text("Tax on coupon ${money(payment.cashflow.tax)}", color = Muted, fontSize = 9.sp)
+                                Text("Gross coupon ${money(payment.cashflow.grossCoupon, payment.bond.currency)}", color = Muted, fontSize = 9.sp)
+                                Text("Tax on coupon ${money(payment.cashflow.tax, payment.bond.currency)}", color = Muted, fontSize = 9.sp)
                             }
-                            if (payment.cashflow.principal > 0) Text("Principal ${money(payment.cashflow.principal)} · no tax", color = Muted, fontSize = 9.sp)
+                            if (payment.cashflow.principal > 0) Text("Principal ${money(payment.cashflow.principal, payment.bond.currency)} · no tax", color = Muted, fontSize = 9.sp)
                         }
                     }
                     if (due) {
@@ -1264,11 +1418,11 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
             text = {
                 Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("${payment.bond.name} · ${payment.cashflow.date.format(DisplayDateFormat)}", color = Teal, fontWeight = FontWeight.Bold)
-                    Text("This records one payment using the combined face balance of ${money(faceBalanceAtCoupon(payment.bond, payment.cashflow.date))}.", color = Muted, fontSize = 11.sp)
-                    if (payment.cashflow.netCoupon > 0) Text("Estimated net coupon: ${money(payment.cashflow.netCoupon)}", fontSize = 11.sp)
-                    if (payment.cashflow.principal > 0) Text("Principal repayment (no tax): ${money(payment.cashflow.principal)}", fontSize = 11.sp)
-                    Text("Estimated total payment: ${money(payment.cashflow.netCoupon + payment.cashflow.principal)}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    TextFieldBlock("Actual amount received (UGX)", amountReceived, { amountReceived = it; receiptError = false }, KeyboardType.NumberPassword, groupThousands = true)
+                    Text("This records one payment using the combined face balance of ${money(faceBalanceAtCoupon(payment.bond, payment.cashflow.date), payment.bond.currency)}.", color = Muted, fontSize = 11.sp)
+                    if (payment.cashflow.netCoupon > 0) Text("Estimated net coupon: ${money(payment.cashflow.netCoupon, payment.bond.currency)}", fontSize = 11.sp)
+                    if (payment.cashflow.principal > 0) Text("Principal repayment (no tax): ${money(payment.cashflow.principal, payment.bond.currency)}", fontSize = 11.sp)
+                    Text("Estimated total payment: ${money(payment.cashflow.netCoupon + payment.cashflow.principal, payment.bond.currency)}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    TextFieldBlock("Actual amount received (${payment.bond.currency})", amountReceived, { amountReceived = it; receiptError = false }, KeyboardType.NumberPassword, groupThousands = true)
                     DateField("Date received", receivedDate) { receivedDate = it; receiptError = false }
                     if (receiptError) Text("Enter a positive amount and a received date that is not in the future.", color = PremiumRed, fontSize = 12.sp)
                 }
@@ -1287,7 +1441,8 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                             estimatedNetAmount = payment.cashflow.netCoupon + payment.cashflow.principal,
                             amountReceived = amount,
                             receivedDate = receivedDate,
-                            principalRepaid = payment.cashflow.principal
+                            principalRepaid = payment.cashflow.principal,
+                            currency = payment.bond.currency
                         ))
                         paymentToRecord = null
                         showHistory = true
@@ -1309,10 +1464,10 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
     }
 }
 
-@Composable private fun CouponSummaryMetric(label: String, amount: Double, modifier: Modifier = Modifier) {
+@Composable private fun CouponSummaryMetric(label: String, amount: Double, currency: String, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(label, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(money(amount), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(money(amount, currency), color = Teal, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1344,6 +1499,7 @@ private fun daysRemaining(date: LocalDate): String {
         text = {
             Column(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 HelpSection("Tax", "The 10% tax value is an editable default, not a universal rate. Confirm the rate that applies to your bond and circumstances. BondWise applies the entered rate to coupon interest only, not principal repayment.")
+                HelpSection("Currencies", "Each bond keeps its own currency. New bonds default to your portfolio base currency, and the booking list only shows enabled currencies. Set manual exchange rates under Currencies & rates. Portfolio totals and charts use the latest saved rate effective on or before today; bonds without a rate are excluded from converted totals and clearly flagged.")
                 HelpSection("Estimated return", "For one purchase lot, the estimate is based on that lot’s purchase price, purchase date, maturity and coupon tax rate. For multiple lots, BondWise calculates a combined annualized return (XIRR) using each dated purchase price, projected coupon payments and principal at maturity. It is not a live market valuation or guaranteed return.")
                 HelpSection("Multiple purchases", "Use one saved bond for all purchases of the same bond. Add each purchase with its own date, face value and total purchase price. The bond card totals the lots, while Purchases shows each lot and its premium or discount.")
                 HelpSection("Coupon and principal payments", "The Coupons tab lists one estimated payment per bond and payment date, based on purchases dated on or before that date. At maturity the payment includes the principal balance as well as any coupon due. Tax applies to coupon interest only; principal repayment is not taxed. Confirm a payment only after you receive it. Unconfirmed past payments remain marked Past due.")
@@ -1503,11 +1659,49 @@ private fun persistCouponReceipts(context: android.content.Context, receipts: Li
     context.getSharedPreferences(PREFS, 0).edit().putString(COUPON_RECEIPTS_KEY, encodeCouponReceipts(receipts).toString()).apply()
 }
 
+private fun loadCurrencySettings(context: android.content.Context): CurrencySettings = try {
+    val saved = context.getSharedPreferences(PREFS, 0).getString(CURRENCY_CONFIG_KEY, null)
+    if (saved.isNullOrBlank()) CurrencySettings() else decodeCurrencySettings(JSONObject(saved))
+} catch (_: Exception) { CurrencySettings() }
+
+private fun persistCurrencySettings(context: android.content.Context, settings: CurrencySettings) {
+    context.getSharedPreferences(PREFS, 0).edit().putString(CURRENCY_CONFIG_KEY, encodeCurrencySettings(settings).toString()).apply()
+}
+
+private fun encodeCurrencySettings(settings: CurrencySettings) = JSONObject().apply {
+    put("baseCurrency", settings.baseCurrency)
+    put("enabledCurrencies", JSONArray(settings.enabledCurrencies))
+    put("customCurrencyNames", JSONObject(settings.customCurrencyNames))
+    put("rates", JSONArray().apply {
+        settings.rates.forEach { rate -> put(JSONObject().apply {
+            put("currency", rate.currency); put("rateToBase", rate.rateToBase); put("effectiveDate", rate.effectiveDate.format(StorageDateFormat))
+        }) }
+    })
+}
+
+private fun decodeCurrencySettings(item: JSONObject): CurrencySettings {
+    val customJson = item.optJSONObject("customCurrencyNames") ?: JSONObject()
+    val custom = customJson.keys().asSequence().associateWith { customJson.getString(it) }
+    val enabledJson = item.optJSONArray("enabledCurrencies") ?: JSONArray(listOf("UGX", "USD", "GBP", "EUR", "KES"))
+    val enabled = (0 until enabledJson.length()).map { enabledJson.getString(it) }.filter { it.matches(Regex("[A-Z]{3}")) }.distinct().toMutableList()
+    val base = item.optString("baseCurrency", "UGX").takeIf { it.matches(Regex("[A-Z]{3}")) } ?: "UGX"
+    if (base !in enabled) enabled.add(base)
+    val ratesJson = item.optJSONArray("rates") ?: JSONArray()
+    val rates = (0 until ratesJson.length()).mapNotNull { index ->
+        val rate = ratesJson.optJSONObject(index) ?: return@mapNotNull null
+        val code = rate.optString("currency")
+        val amount = rate.optDouble("rateToBase", Double.NaN)
+        val date = runCatching { LocalDate.parse(rate.getString("effectiveDate"), StorageDateFormat) }.getOrNull()
+        if (code.matches(Regex("[A-Z]{3}")) && amount.isFinite() && amount > 0 && date != null) CurrencyRate(code, amount, date) else null
+    }
+    return CurrencySettings(base, enabled, custom, rates)
+}
+
 private fun encodeBonds(bonds: List<Bond>) = JSONArray().apply {
     bonds.forEach { bond -> put(JSONObject().apply {
         put("id", bond.id); put("name", bond.name); put("face", bond.totalFaceValue); put("coupon", bond.couponRate)
         put("price", bond.totalCleanPrice); put("maturity", bond.maturityDate.format(StorageDateFormat)); put("nextCoupon", bond.nextCouponDate.format(StorageDateFormat))
-        put("frequency", bond.frequency); put("tax", bond.taxRate)
+        put("frequency", bond.frequency); put("tax", bond.taxRate); put("currency", bond.currency)
         put("lots", JSONArray().apply { bond.purchaseLots.forEach { lot -> put(JSONObject().apply {
             put("id", lot.id); put("purchaseDate", lot.purchaseDate.format(StorageDateFormat)); put("purchaseDateConfirmed", lot.purchaseDateConfirmed)
             put("face", lot.faceValue); put("price", lot.cleanPrice)
@@ -1520,7 +1714,7 @@ private fun encodeCouponReceipts(receipts: List<CouponReceipt>) = JSONArray().ap
         put("bondId", receipt.bondId); put("bondName", receipt.bondName); put("couponDate", receipt.couponDate.format(StorageDateFormat))
         put("faceBalanceAtCoupon", receipt.faceBalanceAtCoupon); put("estimatedNetAmount", receipt.estimatedNetAmount)
         put("amountReceived", receipt.amountReceived); put("receivedDate", receipt.receivedDate.format(StorageDateFormat))
-        put("principalRepaid", receipt.principalRepaid)
+        put("principalRepaid", receipt.principalRepaid); put("currency", receipt.currency)
     }) }
 }
 
@@ -1546,7 +1740,8 @@ private fun decodeBonds(array: JSONArray): List<Bond> = (0 until array.length())
     Bond(
         id = id, name = item.getString("name"), faceValue = faceValue, couponRate = item.getDouble("coupon"), cleanPrice = cleanPrice,
         maturityDate = LocalDate.parse(item.getString("maturity"), StorageDateFormat), nextCouponDate = LocalDate.parse(item.getString("nextCoupon"), StorageDateFormat),
-        frequency = item.getInt("frequency"), taxRate = item.getDouble("tax"), lots = lots
+        frequency = item.getInt("frequency"), taxRate = item.getDouble("tax"), lots = lots,
+        currency = item.optString("currency", "UGX").takeIf { it.matches(Regex("[A-Z]{3}")) } ?: "UGX"
     )
 }
 
@@ -1557,16 +1752,17 @@ private fun decodeCouponReceipts(array: JSONArray): List<CouponReceipt> = (0 unt
         couponDate = LocalDate.parse(item.getString("couponDate"), StorageDateFormat),
         faceBalanceAtCoupon = item.getDouble("faceBalanceAtCoupon"), estimatedNetAmount = item.getDouble("estimatedNetAmount"),
         amountReceived = item.getDouble("amountReceived"), receivedDate = LocalDate.parse(item.getString("receivedDate"), StorageDateFormat),
-        principalRepaid = item.optDouble("principalRepaid", 0.0)
+        principalRepaid = item.optDouble("principalRepaid", 0.0), currency = item.optString("currency", "UGX")
     )
 }
 
-private fun createBackupJson(bonds: List<Bond>, receipts: List<CouponReceipt>): String = JSONObject().apply {
+private fun createBackupJson(bonds: List<Bond>, receipts: List<CouponReceipt>, settings: CurrencySettings): String = JSONObject().apply {
     put("format", "bondwise-backup")
     put("version", 1)
     put("exportedAt", Instant.now().toString())
     put("bonds", encodeBonds(bonds))
     put("couponReceipts", encodeCouponReceipts(receipts))
+    put("currencySettings", encodeCurrencySettings(settings))
 }.toString(2)
 
 private fun parseBackupJson(json: String): BackupData {
@@ -1575,18 +1771,25 @@ private fun parseBackupJson(json: String): BackupData {
     require(root.optInt("version", -1) == 1) { "This backup version is not supported by this app." }
     val bondsJson = root.optJSONArray("bonds") ?: error("The backup is missing its bond data.")
     val receiptsJson = root.optJSONArray("couponReceipts") ?: JSONArray()
-    return BackupData(decodeBonds(bondsJson), decodeCouponReceipts(receiptsJson))
+    return BackupData(decodeBonds(bondsJson), decodeCouponReceipts(receiptsJson), root.optJSONObject("currencySettings")?.let(::decodeCurrencySettings) ?: CurrencySettings())
 }
 
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
 private fun netReturnLabel(bond: Bond) = if (bond.purchaseLots.size > 1) "Estimated Net Return" else "Estimated Net YTM"
-private fun money(value: Double) = "UGX " + String.format(Locale.US, "%,.0f", value)
+private fun money(value: Double, currency: String = "UGX") = "$currency " + String.format(Locale.US, "%,.0f", value)
+private fun CurrencySettings.rateFor(currency: String, onDate: LocalDate = LocalDate.now()): Double? {
+    if (currency == baseCurrency) return 1.0
+    return rates.filter { it.currency == currency && !it.effectiveDate.isAfter(onDate) }
+        .maxByOrNull { it.effectiveDate }?.rateToBase?.takeIf { it.isFinite() && it > 0.0 }
+}
+private fun CurrencySettings.convert(amount: Double, currency: String, onDate: LocalDate = LocalDate.now()): Double? = rateFor(currency, onDate)?.let { amount * it }
+private fun CurrencySettings.moneyInBase(amount: Double, currency: String, onDate: LocalDate = LocalDate.now()): String = convert(amount, currency, onDate)?.let { money(it, baseCurrency) } ?: "Rate needed"
 private fun premiumDiscount(bond: Bond): PricePosition {
     val difference = bond.totalCleanPrice - bond.totalFaceValue
-    if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", "UGX 0", Muted)
+    if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", money(0.0, bond.currency), Muted)
     val label = if (difference > 0) "Premium" else "Discount"
     val color = if (difference > 0) PremiumRed else DiscountGreen
-    return PricePosition(label, money(kotlin.math.abs(difference)), color)
+    return PricePosition(label, money(kotlin.math.abs(difference), bond.currency), color)
 }
 
 private fun String.toAmountOrNull(): Double? = replace(",", "").trim().toDoubleOrNull()
