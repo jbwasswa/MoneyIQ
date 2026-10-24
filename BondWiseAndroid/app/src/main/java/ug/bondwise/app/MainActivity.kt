@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
@@ -39,6 +41,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,26 +60,59 @@ import java.time.Instant
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 
-private val Navy = Color(0xFF17365D)
-private val Teal = Color(0xFF0F8B8D)
-private val Canvas = Color(0xFFF3F6FA)
-private val Ink = Color(0xFF172B4D)
-private val Muted = Color(0xFF6B7B90)
-private val Line = Color(0xFFE0E7EF)
+private data class BondWisePalette(
+    val name: String,
+    val navy: Color,
+    val teal: Color,
+    val canvas: Color,
+    val ink: Color,
+    val muted: Color,
+    val line: Color,
+    val surface: Color,
+    val softSurface: Color,
+    val badgeSurface: Color,
+    val bannerMuted: Color,
+    val heroEnd: Color,
+    val isDark: Boolean = false
+)
+
+private val BondWisePalettes = listOf(
+    BondWisePalette("Forest", Color(0xFF17503F), Color(0xFF149879), Color(0xFFF2F7F3), Color(0xFF173D34), Color(0xFF657C73), Color(0xFFDCE8E2), Color.White, Color(0xFFF1F7F4), Color(0xFFDDF3EA), Color(0xFFD6EDE5), Color(0xFF2C775F)),
+    BondWisePalette("Oxford", Color(0xFF17365D), Color(0xFF0F8B8D), Color(0xFFF3F6FA), Color(0xFF172B4D), Color(0xFF6B7B90), Color(0xFFE0E7EF), Color.White, Color(0xFFF5F8FB), Color(0xFFE1F4F0), Color(0xFFD5E4EF), Color(0xFF344F9A)),
+    BondWisePalette("Berry", Color(0xFF55233F), Color(0xFFB44875), Color(0xFFFAF3F6), Color(0xFF48263A), Color(0xFF806B79), Color(0xFFEADCE4), Color.White, Color(0xFFFAF1F5), Color(0xFFF7E3ED), Color(0xFFF0D7E3), Color(0xFF7A3C6A)),
+    BondWisePalette("Slate", Color(0xFF394959), Color(0xFF568A9C), Color(0xFFF2F5F7), Color(0xFF263848), Color(0xFF697987), Color(0xFFDEE5E9), Color.White, Color(0xFFF0F4F6), Color(0xFFE4EFF2), Color(0xFFDDE5EA), Color(0xFF526273)),
+    BondWisePalette("Dark", Color(0xFF161B26), Color(0xFF32B8AA), Color(0xFF202633), Color(0xFFF1F4F8), Color(0xFFB5C0CF), Color(0xFF414C5D), Color(0xFF2A3341), Color(0xFF252D3A), Color(0xFF263F43), Color(0xFFB7C8D0), Color(0xFF263342), true)
+)
+private var activePalette by mutableStateOf(BondWisePalettes[1])
+private val Navy: Color get() = activePalette.navy
+private val Teal: Color get() = activePalette.teal
+private val Canvas: Color get() = activePalette.canvas
+private val Ink: Color get() = activePalette.ink
+private val Muted: Color get() = activePalette.muted
+private val Line: Color get() = activePalette.line
+private val SurfaceColor: Color get() = activePalette.surface
+private val SoftSurface: Color get() = activePalette.softSurface
+private val BadgeSurface: Color get() = activePalette.badgeSurface
+private val BannerMuted: Color get() = activePalette.bannerMuted
+private val HeroEnd: Color get() = activePalette.heroEnd
 private val DisplayDateFormat = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH)
 private val StorageDateFormat = DateTimeFormatter.ISO_LOCAL_DATE
 private const val PREFS = "bondwise_local"
 private const val BONDS_KEY = "saved_bonds"
 private const val COUPON_RECEIPTS_KEY = "coupon_receipts"
-private val PremiumRed = Color(0xFFB54747)
-private val DiscountGreen = Color(0xFF16835D)
+private const val THEME_KEY = "color_theme"
+private val PremiumRed: Color get() = if (activePalette.isDark) Color(0xFFFF8989) else Color(0xFFB54747)
+private val DiscountGreen: Color get() = if (activePalette.isDark) Color(0xFF57D6A0) else Color(0xFF16835D)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        activePalette = paletteFor(getSharedPreferences(PREFS, MODE_PRIVATE).getString(THEME_KEY, "Oxford"))
         setContent { BondWiseApp() }
     }
 }
+
+private fun paletteFor(name: String?): BondWisePalette = BondWisePalettes.firstOrNull { it.name == name } ?: BondWisePalettes[1]
 
 data class PurchaseLot(
     val id: String = UUID.randomUUID().toString(),
@@ -299,23 +337,26 @@ fun BondWiseApp() {
         }
     }
 
-    MaterialTheme(colorScheme = lightColorScheme(primary = Teal, secondary = Navy, background = Canvas, surface = Color.White, onSurface = Ink)) {
+    val palette = activePalette
+    SideEffect {
+        (context as? Activity)?.window?.let { window ->
+            window.statusBarColor = palette.navy.toArgb()
+            window.navigationBarColor = (if (palette.isDark) palette.canvas else Color.White).toArgb()
+            val view = window.decorView
+            val lightNavigation = android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            view.systemUiVisibility = if (palette.isDark) view.systemUiVisibility and lightNavigation.inv() else view.systemUiVisibility or lightNavigation
+        }
+    }
+    val colorScheme = if (palette.isDark) {
+        darkColorScheme(primary = palette.teal, secondary = palette.navy, background = palette.canvas, surface = palette.surface, onSurface = palette.ink, surfaceVariant = palette.softSurface, onSurfaceVariant = palette.muted, outline = palette.line)
+    } else {
+        lightColorScheme(primary = palette.teal, secondary = palette.navy, background = palette.canvas, surface = palette.surface, onSurface = palette.ink, surfaceVariant = palette.softSurface, onSurfaceVariant = palette.muted, outline = palette.line)
+    }
+    MaterialTheme(colorScheme = colorScheme) {
         Scaffold(
             containerColor = Canvas,
             bottomBar = {
-                NavigationBar(containerColor = Color.White) {
-                    pages.forEach { item ->
-                        NavigationBarItem(
-                            selected = pagerState.currentPage == pages.indexOf(item),
-                            onClick = {
-                                val target = pages.indexOf(item)
-                                if (target >= 0) scope.launch { pagerState.animateScrollToPage(target) }
-                            },
-                            icon = { Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, fontSize = 19.sp) },
-                            label = { Text(when (item) { "Overview" -> "Home"; "Calculator" -> "Calc"; "My bonds" -> "Bonds"; else -> item }, fontSize = 10.sp, maxLines = 1) }
-                        )
-                    }
-                }
+                BondWiseBottomBar(pages, pagerState.currentPage) { target -> scope.launch { pagerState.animateScrollToPage(target) } }
             }
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad)) {
@@ -324,6 +365,13 @@ fun BondWiseApp() {
                     onOpenMenu = { appMenuPage = "main" },
                     onDismissMenu = { appMenuPage = null },
                     onOpenBackup = { appMenuPage = "backup" },
+                    onOpenAppearance = { appMenuPage = "appearance" },
+                    selectedTheme = palette.name,
+                    onSelectTheme = { name ->
+                        activePalette = paletteFor(name)
+                        context.getSharedPreferences(PREFS, 0).edit().putString(THEME_KEY, name).apply()
+                        appMenuPage = null
+                    },
                     onHelp = { appMenuPage = null; showHelp = true },
                     onAbout = { appMenuPage = null; showAbout = true },
                     onExportBackup = {
@@ -403,6 +451,9 @@ fun BondWiseApp() {
     onOpenMenu: () -> Unit,
     onDismissMenu: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenAppearance: () -> Unit,
+    selectedTheme: String,
+    onSelectTheme: (String) -> Unit,
     onHelp: () -> Unit,
     onAbout: () -> Unit,
     onExportBackup: () -> Unit,
@@ -416,7 +467,7 @@ fun BondWiseApp() {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text("BondWise UG", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Compare bonds and coupon income", color = Color(0xFFD5E4EF), fontSize = 11.sp)
+            Text("Compare bonds and coupon income", color = BannerMuted, fontSize = 11.sp)
         }
         Box {
             IconButton(onClick = onOpenMenu, modifier = Modifier.semantics { contentDescription = "Open app menu" }) {
@@ -424,16 +475,57 @@ fun BondWiseApp() {
             }
             DropdownMenu(expanded = menuPage != null, onDismissRequest = onDismissMenu) {
                 if (menuPage == "backup") {
-                    Text("Backup & restore", modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    DropdownMenuItem(text = { Text("‹ Main menu") }, leadingIcon = { MenuGlyph("‹") }, onClick = onOpenMenu)
+                    Text("Backup & restore", modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     HorizontalDivider()
-                    DropdownMenuItem(text = { Text("‹ Back to menu") }, onClick = onOpenMenu)
-                    DropdownMenuItem(text = { Text("Export backup file") }, onClick = onExportBackup)
-                    DropdownMenuItem(text = { Text("Restore from file") }, onClick = onImportBackup)
+                    DropdownMenuItem(text = { Text("Export backup file") }, leadingIcon = { MenuGlyph("↑") }, onClick = onExportBackup)
+                    DropdownMenuItem(text = { Text("Restore from file") }, leadingIcon = { MenuGlyph("↓") }, onClick = onImportBackup)
+                } else if (menuPage == "appearance") {
+                    DropdownMenuItem(text = { Text("‹ Main menu") }, leadingIcon = { MenuGlyph("‹") }, onClick = onOpenMenu)
+                    Text("Appearance", modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    HorizontalDivider()
+                    BondWisePalettes.forEach { palette ->
+                        DropdownMenuItem(
+                            text = { Text(palette.name, fontWeight = if (selectedTheme == palette.name) FontWeight.SemiBold else FontWeight.Normal) },
+                            leadingIcon = { Box(Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)).background(palette.navy)) },
+                            trailingIcon = { if (selectedTheme == palette.name) Text("✓", color = Teal, fontWeight = FontWeight.Bold) },
+                            onClick = { onSelectTheme(palette.name) }
+                        )
+                    }
                 } else {
-                    DropdownMenuItem(text = { Text("Backup & restore") }, onClick = onOpenBackup)
-                    DropdownMenuItem(text = { Text("Help") }, onClick = onHelp)
-                    DropdownMenuItem(text = { Text("About") }, onClick = onAbout)
+                    DropdownMenuItem(text = { Text("Backup & restore") }, leadingIcon = { MenuGlyph("☁") }, onClick = onOpenBackup)
+                    DropdownMenuItem(text = { Text("Appearance") }, leadingIcon = { MenuGlyph("◐") }, onClick = onOpenAppearance)
+                    DropdownMenuItem(text = { Text("Help") }, leadingIcon = { MenuGlyph("?") }, onClick = onHelp)
+                    DropdownMenuItem(text = { Text("About") }, leadingIcon = { MenuGlyph("ⓘ") }, onClick = onAbout)
                 }
+            }
+        }
+    }
+}
+
+@Composable private fun MenuGlyph(glyph: String) {
+    Text(glyph, color = Teal, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
+}
+
+@Composable private fun BondWiseBottomBar(pages: List<String>, selectedPage: Int, onSelect: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(Navy).navigationBarsPadding().height(68.dp).padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        pages.forEachIndexed { index, item ->
+            val selected = selectedPage == index
+            val label = when (item) { "Overview" -> "Home"; "Calculator" -> "Calc"; "My bonds" -> "Bonds"; else -> item }
+            Column(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(9.dp))
+                    .background(if (selected) Teal else Color.Transparent)
+                    .clickable(onClickLabel = "Open $label") { onSelect(index) }
+                    .semantics { contentDescription = label; role = Role.Tab; selected = selected },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, color = if (selected) Color.White else BannerMuted, fontSize = 19.sp, lineHeight = 22.sp)
+                Text(label, color = if (selected) Color.White else BannerMuted, fontSize = 9.sp, maxLines = 1)
             }
         }
     }
@@ -466,20 +558,20 @@ fun BondWiseApp() {
             item {
                 Column(
                     Modifier.fillMaxWidth().background(
-                        Brush.linearGradient(listOf(Navy, Color(0xFF344F9A))), RoundedCornerShape(22.dp)
+                        Brush.linearGradient(listOf(Navy, HeroEnd)), RoundedCornerShape(22.dp)
                     ).padding(17.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Face Value Held", color = Color(0xFFD4DDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
+                    Text("Face Value Held", color = BannerMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
                     Text(money(totalFaceValue), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)) {
-                            Text("Annual Net Coupons", color = Color(0xFFD4DDF8), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("Annual Net Coupons", color = BannerMuted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             Text(money(totalNetCoupons), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                            Text("Total Purchase Price", color = Color(0xFFD4DDF8), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("Total Purchase Price", color = BannerMuted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             Text(money(totalPurchasePrice), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
@@ -562,13 +654,13 @@ fun BondWiseApp() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Portfolio at a Glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
+                        Surface(color = SurfaceColor, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text("Bonds Tracked", color = Muted, fontSize = 9.sp, maxLines = 1)
                                 Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             }
                         }
-                        Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
+                        Surface(color = SurfaceColor, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text("Highest ${best?.let { netReturnLabel(it) } ?: "Estimated Net Return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -608,8 +700,8 @@ fun BondWiseApp() {
             SectionTitle("Compare bonds", "${bonds.size} SAVED")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = true, onClick = { compareMode = "Saved" }, label = { Text("Saved bonds") })
-                FilterChip(selected = false, onClick = { compareMode = "Quick compare" }, label = { Text("Quick compare") })
+                FilterChip(selected = true, onClick = { compareMode = "Saved" }, label = { Text("Saved bonds") }, shape = RoundedCornerShape(9.dp))
+                FilterChip(selected = false, onClick = { compareMode = "Quick compare" }, label = { Text("Quick compare") }, shape = RoundedCornerShape(9.dp))
             }
         }
         if (sorted.isEmpty()) {
@@ -633,8 +725,8 @@ fun BondWiseApp() {
             SectionTitle("Quick compare", "NOT SAVED")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = false, onClick = onSavedBonds, label = { Text("Saved bonds") })
-                FilterChip(selected = true, onClick = {}, label = { Text("Quick compare") })
+                FilterChip(selected = false, onClick = onSavedBonds, label = { Text("Saved bonds") }, shape = RoundedCornerShape(9.dp))
+                FilterChip(selected = true, onClick = {}, label = { Text("Quick compare") }, shape = RoundedCornerShape(9.dp))
             }
             Text("Enter two bonds to compare their estimated yields and coupon income. These entries stay here and are not added to My bonds.", color = Muted, fontSize = 12.sp)
         }
@@ -870,7 +962,7 @@ fun BondWiseApp() {
 
 @Composable private fun DateField(label: String, date: LocalDate?, onDate: (LocalDate) -> Unit) {
     val context = LocalContext.current
-    Surface(color = Color(0xFFF5F8FB), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth().clickable {
+    Surface(color = SoftSurface, shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth().clickable {
         val initialDate = date ?: LocalDate.now()
         DatePickerDialog(context, { _, year, month, day -> onDate(LocalDate.of(year, month + 1, day)) }, initialDate.year, initialDate.monthValue - 1, initialDate.dayOfMonth).show()
     }) {
@@ -1069,8 +1161,8 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
             SectionTitle("Coupons")
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") })
-                FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") })
+                FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") }, shape = RoundedCornerShape(9.dp))
+                FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") }, shape = RoundedCornerShape(9.dp))
             }
             CardBox {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1097,8 +1189,8 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                             Text(receipt.bondName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("Payment ${receipt.couponDate.format(DisplayDateFormat)} · Received ${receipt.receivedDate.format(DisplayDateFormat)}", color = Teal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
-                        Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(30.dp)) {
-                            Text("Received", color = DiscountGreen, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                        Surface(color = BadgeSurface, shape = RoundedCornerShape(8.dp)) {
+                            Text("Received", color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
                         }
                     }
                     if (receipt.principalRepaid > 0) {
@@ -1137,7 +1229,7 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
                             Text(payment.bond.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("${dueDate.format(DisplayDateFormat)} · ${daysRemaining(dueDate)}", color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
-                        Surface(color = statusColor.copy(alpha = 0.12f), shape = RoundedCornerShape(30.dp)) {
+                        Surface(color = statusColor.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
                             Text(statusLabel, color = statusColor, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
                         }
                     }
@@ -1296,13 +1388,13 @@ private fun daysRemaining(date: LocalDate): String {
 }
 
 @Composable private fun CardBox(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = modifier.fillMaxWidth()) {
+    Surface(color = SurfaceColor, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(15.dp), content = content)
     }
 }
 
 @Composable private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color = Ink, labelColor: Color = Muted) {
-    Surface(color = Color(0xFFF5F8FB), shape = RoundedCornerShape(12.dp), modifier = modifier) {
+    Surface(color = SoftSurface, shape = RoundedCornerShape(12.dp), modifier = modifier) {
         Column(Modifier.padding(10.dp)) { Text(label, color = labelColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold); Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
     }
 }
@@ -1310,7 +1402,7 @@ private fun daysRemaining(date: LocalDate): String {
 @Composable private fun SectionTitle(title: String, tag: String? = null) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        if (tag != null) Surface(color = Color(0xFFE1F4F0), shape = RoundedCornerShape(9.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
+        if (tag != null) Surface(color = BadgeSurface, shape = RoundedCornerShape(8.dp)) { Text(tag, color = Teal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
     }
 }
 
