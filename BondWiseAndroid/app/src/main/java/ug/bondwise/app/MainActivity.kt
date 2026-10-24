@@ -586,7 +586,7 @@ fun BondWiseApp() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Portfolio Allocation", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("By Face Value · View Bonds ↓", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text("By Face Value", color = Teal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                     CardBox(modifier = Modifier.clickable(onClickLabel = "View Your Bonds") {
                         coroutineScope.launch { listState.animateScrollToItem(yourBondsHeaderIndex) }
@@ -606,10 +606,10 @@ fun BondWiseApp() {
                                     } else {
                                         drawCircle(Line)
                                     }
-                                    drawCircle(Color.White, radius = size.minDimension * 0.29f)
+                                    drawCircle(SurfaceColor, radius = size.minDimension * 0.29f)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                                    Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -700,8 +700,8 @@ fun BondWiseApp() {
             SectionTitle("Compare bonds", "${bonds.size} SAVED")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = true, onClick = { compareMode = "Saved" }, label = { Text("Saved bonds") }, shape = RoundedCornerShape(9.dp))
-                FilterChip(selected = false, onClick = { compareMode = "Quick compare" }, label = { Text("Quick compare") }, shape = RoundedCornerShape(9.dp))
+                FilterChip(selected = true, onClick = { compareMode = "Saved" }, label = { Text("Saved bonds") }, shape = RoundedCornerShape(9.dp), colors = themedFilterChipColors())
+                FilterChip(selected = false, onClick = { compareMode = "Quick compare" }, label = { Text("Quick compare") }, shape = RoundedCornerShape(9.dp), colors = themedFilterChipColors())
             }
         }
         if (sorted.isEmpty()) {
@@ -725,8 +725,8 @@ fun BondWiseApp() {
             SectionTitle("Quick compare", "NOT SAVED")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = false, onClick = onSavedBonds, label = { Text("Saved bonds") }, shape = RoundedCornerShape(9.dp))
-                FilterChip(selected = true, onClick = {}, label = { Text("Quick compare") }, shape = RoundedCornerShape(9.dp))
+                FilterChip(selected = false, onClick = onSavedBonds, label = { Text("Saved bonds") }, shape = RoundedCornerShape(9.dp), colors = themedFilterChipColors())
+                FilterChip(selected = true, onClick = {}, label = { Text("Quick compare") }, shape = RoundedCornerShape(9.dp), colors = themedFilterChipColors())
             }
             Text("Enter two bonds to compare their estimated yields and coupon income. These entries stay here and are not added to My bonds.", color = Muted, fontSize = 12.sp)
         }
@@ -1161,8 +1161,8 @@ private data class ScheduledCoupon(val bond: Bond, val cashflow: Cashflow)
             SectionTitle("Coupons")
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") }, shape = RoundedCornerShape(9.dp))
-                FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") }, shape = RoundedCornerShape(9.dp))
+                FilterChip(selected = !showHistory, onClick = { showHistory = false }, label = { Text("Scheduled (${scheduled.size})") }, shape = RoundedCornerShape(9.dp), colors = themedFilterChipColors())
+                FilterChip(selected = showHistory, onClick = { showHistory = true }, label = { Text("Received (${history.size})") }, shape = RoundedCornerShape(9.dp), colors = themedFilterChipColors())
             }
             CardBox {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1398,6 +1398,15 @@ private fun daysRemaining(date: LocalDate): String {
         Column(Modifier.padding(10.dp)) { Text(label, color = labelColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold); Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
     }
 }
+
+@Composable private fun themedFilterChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = Navy,
+    selectedLabelColor = Color.White,
+    selectedLeadingIconColor = Color.White,
+    selectedTrailingIconColor = Color.White,
+    containerColor = SurfaceColor,
+    labelColor = Ink
+)
 
 @Composable private fun SectionTitle(title: String, tag: String? = null) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
