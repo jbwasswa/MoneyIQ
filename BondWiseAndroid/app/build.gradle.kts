@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "ug.bondwise.app"
     compileSdk = 35
-    defaultConfig { applicationId = "ug.bondwise.app"; minSdk = 26; targetSdk = 35; versionCode = 42; versionName = "1.5.23" }
+    defaultConfig { applicationId = "ug.bondwise.app"; minSdk = 26; targetSdk = 35; versionCode = 43; versionName = "1.5.24" }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
