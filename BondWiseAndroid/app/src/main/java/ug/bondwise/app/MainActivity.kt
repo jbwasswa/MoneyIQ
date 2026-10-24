@@ -364,7 +364,6 @@ fun BondWiseApp() {
                     menuPage = appMenuPage,
                     onOpenMenu = { appMenuPage = "main" },
                     onDismissMenu = { appMenuPage = null },
-                    onOpenBackup = { appMenuPage = "backup" },
                     onOpenAppearance = { appMenuPage = "appearance" },
                     selectedTheme = palette.name,
                     onSelectTheme = { name ->
@@ -450,7 +449,6 @@ fun BondWiseApp() {
     menuPage: String?,
     onOpenMenu: () -> Unit,
     onDismissMenu: () -> Unit,
-    onOpenBackup: () -> Unit,
     onOpenAppearance: () -> Unit,
     selectedTheme: String,
     onSelectTheme: (String) -> Unit,
@@ -474,13 +472,7 @@ fun BondWiseApp() {
                 Text("☰", color = Color.White, fontSize = 22.sp)
             }
             DropdownMenu(expanded = menuPage != null, onDismissRequest = onDismissMenu) {
-                if (menuPage == "backup") {
-                    DropdownMenuItem(text = { Text("‹ Main menu") }, leadingIcon = { MenuGlyph("‹") }, onClick = onOpenMenu)
-                    Text("Backup & restore", modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    HorizontalDivider()
-                    DropdownMenuItem(text = { Text("Export backup file") }, leadingIcon = { MenuGlyph("↑") }, onClick = onExportBackup)
-                    DropdownMenuItem(text = { Text("Restore from file") }, leadingIcon = { MenuGlyph("↓") }, onClick = onImportBackup)
-                } else if (menuPage == "appearance") {
+                if (menuPage == "appearance") {
                     DropdownMenuItem(text = { Text("‹ Main menu") }, leadingIcon = { MenuGlyph("‹") }, onClick = onOpenMenu)
                     Text("Appearance", modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     HorizontalDivider()
@@ -493,7 +485,8 @@ fun BondWiseApp() {
                         )
                     }
                 } else {
-                    DropdownMenuItem(text = { Text("Backup & restore") }, leadingIcon = { MenuGlyph("☁") }, onClick = onOpenBackup)
+                    DropdownMenuItem(text = { Text("Back up data") }, leadingIcon = { MenuGlyph("⬆") }, onClick = onExportBackup)
+                    DropdownMenuItem(text = { Text("Restore data") }, leadingIcon = { MenuGlyph("↻") }, onClick = onImportBackup)
                     DropdownMenuItem(text = { Text("Appearance") }, leadingIcon = { MenuGlyph("◐") }, onClick = onOpenAppearance)
                     DropdownMenuItem(text = { Text("Help") }, leadingIcon = { MenuGlyph("?") }, onClick = onHelp)
                     DropdownMenuItem(text = { Text("About") }, leadingIcon = { MenuGlyph("ⓘ") }, onClick = onAbout)
