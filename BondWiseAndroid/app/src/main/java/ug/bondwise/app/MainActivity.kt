@@ -514,18 +514,18 @@ fun BondWiseApp() {
         verticalAlignment = Alignment.CenterVertically
     ) {
         pages.forEachIndexed { index, item ->
-            val selected = selectedPage == index
+            val isSelected = selectedPage == index
             val label = when (item) { "Overview" -> "Home"; "Calculator" -> "Calc"; "My bonds" -> "Bonds"; else -> item }
             Column(
                 Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(9.dp))
-                    .background(if (selected) Teal else Color.Transparent)
+                    .background(if (isSelected) Teal else Color.Transparent)
                     .clickable(onClickLabel = "Open $label") { onSelect(index) }
-                    .semantics { contentDescription = label; role = Role.Tab; selected = selected },
+                    .semantics { contentDescription = label; role = Role.Tab; selected = isSelected },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, color = if (selected) Color.White else BannerMuted, fontSize = 19.sp, lineHeight = 22.sp)
-                Text(label, color = if (selected) Color.White else BannerMuted, fontSize = 9.sp, maxLines = 1)
+                Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, color = if (isSelected) Color.White else BannerMuted, fontSize = 19.sp, lineHeight = 22.sp)
+                Text(label, color = if (isSelected) Color.White else BannerMuted, fontSize = 9.sp, maxLines = 1)
             }
         }
     }
