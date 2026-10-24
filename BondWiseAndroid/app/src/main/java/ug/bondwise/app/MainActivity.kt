@@ -178,7 +178,7 @@ private val CurrencyNames = mapOf(
     "KES" to "Kenyan Shilling", "TZS" to "Tanzanian Shilling", "RWF" to "Rwandan Franc",
     "ZAR" to "South African Rand", "JPY" to "Japanese Yen", "CAD" to "Canadian Dollar", "AUD" to "Australian Dollar", "CHF" to "Swiss Franc"
 )
-private data class CurrencyRate(val currency: String, val rateToBase: Double, val effectiveDate: LocalDate)
+private data class CurrencyRate(val currency: String, val rateToBase: Double)
 private data class CurrencySettings(
     val baseCurrency: String = "UGX",
     val enabledCurrencies: List<String> = listOf("UGX", "USD", "GBP", "EUR", "KES"),
@@ -535,7 +535,6 @@ fun BondWiseApp() {
     var enabled by remember { mutableStateOf(initial.enabledCurrencies.toSet()) }
     var customNames by remember { mutableStateOf(initial.customCurrencyNames) }
     val rateValues = remember { mutableStateMapOf<String, String>().apply { initial.rates.forEach { put(it.currency, it.rateToBase.toString()) } } }
-    val rateDates = remember { mutableStateMapOf<String, LocalDate>().apply { initial.rates.forEach { put(it.currency, it.effectiveDate) } } }
     var newCode by remember { mutableStateOf("") }
     var newName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -556,8 +555,6 @@ fun BondWiseApp() {
                                 base = code
                                 baseChanged = true
                                 rateValues.clear()
-                                rateDates.clear()
-                                enabled.filter { it != code }.forEach { rateDates[it] = LocalDate.now() }
                             }
                             baseExpanded = false
                         }) }
@@ -568,12 +565,12 @@ fun BondWiseApp() {
                 Text("Enabled currencies", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 (CurrencyNames.keys + customNames.keys).distinct().sorted().forEach { code ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = code in enabled, enabled = code != base, onCheckedChange = { checked ->
+                        val lockedByBond = code in currenciesInUse && code in enabled
+                        Checkbox(checked = code in enabled, enabled = code != base && !lockedByBond, onCheckedChange = { checked ->
                             enabled = if (checked) enabled + code else enabled - code
-                            if (checked && code != base && rateDates[code] == null) rateDates[code] = LocalDate.now()
                         })
                         Text(code, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(42.dp))
-                        Text(names[code] ?: code, color = Muted, fontSize = 12.sp)
+                        Text((names[code] ?: code) + if (lockedByBond) " · In use" else "", color = Muted, fontSize = 12.sp)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -583,23 +580,25 @@ fun BondWiseApp() {
                         val code = newCode.trim()
                         if (!code.matches(Regex("[A-Z]{3}")) || code in CurrencyNames || code in customNames) error = "Enter a new three-letter currency code and name."
                         else if (newName.isBlank()) error = "Enter a name for the currency."
-                        else { customNames = customNames + (code to newName.trim()); enabled = enabled + code; rateDates[code] = LocalDate.now(); newCode = ""; newName = ""; error = null }
+                        else { customNames = customNames + (code to newName.trim()); enabled = enabled + code; newCode = ""; newName = ""; error = null }
                     }) { Text("Add") }
                 }
                 HorizontalDivider()
                 Text("Manual exchange rates", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 Text("Enter how many units of the base currency equal 1 unit of each enabled currency.", color = Muted, fontSize = 11.sp)
                 (enabled + currenciesInUse).distinct().sorted().filter { it != base }.forEach { code ->
-                    Text("1 $code =", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(
-                        value = rateValues[code] ?: "",
-                        onValueChange = { rateValues[code] = it.filter { char -> char.isDigit() || char == '.' } },
-                        label = { Text("Amount in $base") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    DateField("Rate effective date", rateDates[code] ?: LocalDate.now()) { rateDates[code] = it }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("1 $code =", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
+                        OutlinedTextField(
+                            value = rateValues[code] ?: "",
+                            onValueChange = { rateValues[code] = it.filter { char -> char.isDigit() || char == '.' } },
+                            label = { Text(base) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(base, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
                 error?.let { Text(it, color = PremiumRed, fontSize = 12.sp) }
             }
@@ -611,10 +610,15 @@ fun BondWiseApp() {
                 var validationError: String? = null
                 rateCurrencies.forEach { code ->
                     val raw = rateValues[code].orEmpty().replace(",", "").trim()
-                    if (raw.isNotEmpty()) {
+                    val isRequired = code in enabled
+                    if (raw.isEmpty() && isRequired) {
+                        validationError = "Add a positive exchange rate for 1 $code in $base, or disable $code."
+                    } else if (raw.isEmpty()) {
+                        initial.rates.firstOrNull { it.currency == code }?.let(rates::add)
+                    } else if (raw.isNotEmpty()) {
                         val rate = raw.toDoubleOrNull()
                         if (rate == null || rate <= 0 || !rate.isFinite()) validationError = "Exchange rates must be positive numbers."
-                        else rates.add(CurrencyRate(code, rate, rateDates[code] ?: LocalDate.now()))
+                        else rates.add(CurrencyRate(code, rate))
                     }
                 }
                 if (validationError != null) error = validationError
@@ -1674,7 +1678,7 @@ private fun encodeCurrencySettings(settings: CurrencySettings) = JSONObject().ap
     put("customCurrencyNames", JSONObject(settings.customCurrencyNames))
     put("rates", JSONArray().apply {
         settings.rates.forEach { rate -> put(JSONObject().apply {
-            put("currency", rate.currency); put("rateToBase", rate.rateToBase); put("effectiveDate", rate.effectiveDate.format(StorageDateFormat))
+            put("currency", rate.currency); put("rateToBase", rate.rateToBase)
         }) }
     })
 }
@@ -1691,8 +1695,7 @@ private fun decodeCurrencySettings(item: JSONObject): CurrencySettings {
         val rate = ratesJson.optJSONObject(index) ?: return@mapNotNull null
         val code = rate.optString("currency")
         val amount = rate.optDouble("rateToBase", Double.NaN)
-        val date = runCatching { LocalDate.parse(rate.getString("effectiveDate"), StorageDateFormat) }.getOrNull()
-        if (code.matches(Regex("[A-Z]{3}")) && amount.isFinite() && amount > 0 && date != null) CurrencyRate(code, amount, date) else null
+        if (code.matches(Regex("[A-Z]{3}")) && amount.isFinite() && amount > 0) CurrencyRate(code, amount) else null
     }
     return CurrencySettings(base, enabled, custom, rates)
 }
@@ -1777,13 +1780,12 @@ private fun parseBackupJson(json: String): BackupData {
 private fun Double.fmt() = if (isFinite()) String.format(Locale.US, "%.2f", this) else "—"
 private fun netReturnLabel(bond: Bond) = if (bond.purchaseLots.size > 1) "Estimated Net Return" else "Estimated Net YTM"
 private fun money(value: Double, currency: String = "UGX") = "$currency " + String.format(Locale.US, "%,.0f", value)
-private fun CurrencySettings.rateFor(currency: String, onDate: LocalDate = LocalDate.now()): Double? {
+private fun CurrencySettings.rateFor(currency: String): Double? {
     if (currency == baseCurrency) return 1.0
-    return rates.filter { it.currency == currency && !it.effectiveDate.isAfter(onDate) }
-        .maxByOrNull { it.effectiveDate }?.rateToBase?.takeIf { it.isFinite() && it > 0.0 }
+    return rates.lastOrNull { it.currency == currency }?.rateToBase?.takeIf { it.isFinite() && it > 0.0 }
 }
-private fun CurrencySettings.convert(amount: Double, currency: String, onDate: LocalDate = LocalDate.now()): Double? = rateFor(currency, onDate)?.let { amount * it }
-private fun CurrencySettings.moneyInBase(amount: Double, currency: String, onDate: LocalDate = LocalDate.now()): String = convert(amount, currency, onDate)?.let { money(it, baseCurrency) } ?: "Rate needed"
+private fun CurrencySettings.convert(amount: Double, currency: String): Double? = rateFor(currency)?.let { amount * it }
+private fun CurrencySettings.moneyInBase(amount: Double, currency: String): String = convert(amount, currency)?.let { money(it, baseCurrency) } ?: "Rate needed"
 private fun premiumDiscount(bond: Bond): PricePosition {
     val difference = bond.totalCleanPrice - bond.totalFaceValue
     if (kotlin.math.abs(difference) < 0.005) return PricePosition("At Face Value", money(0.0, bond.currency), Muted)
