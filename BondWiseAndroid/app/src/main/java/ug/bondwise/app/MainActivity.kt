@@ -657,7 +657,7 @@ fun BondWiseApp() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, color = if (isSelected) Color.White else BannerMuted, fontSize = 19.sp, lineHeight = 22.sp)
+                Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, color = if (isSelected) Color.White else BannerMuted, fontSize = 19.sp, lineHeight = 20.sp)
                 Text(label, color = if (isSelected) Color.White else BannerMuted, fontSize = 10.sp, maxLines = 1)
             }
         }
@@ -809,7 +809,7 @@ fun BondWiseApp() {
                     Text("Portfolio at a Glance", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Surface(color = SurfaceColor, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("Bonds Tracked", color = Muted, fontSize = 9.sp, maxLines = 1)
                                 Text("${bonds.size} ${if (bonds.size == 1) "Bond" else "Bonds"}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             }
