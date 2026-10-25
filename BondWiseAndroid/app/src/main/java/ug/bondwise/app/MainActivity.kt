@@ -642,7 +642,7 @@ fun BondWiseApp() {
 
 @Composable private fun BondWiseBottomBar(pages: List<String>, selectedPage: Int, onSelect: (Int) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Navy).navigationBarsPadding().height(68.dp).padding(horizontal = 4.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().background(Navy).navigationBarsPadding().height(60.dp).padding(horizontal = 4.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -658,7 +658,7 @@ fun BondWiseApp() {
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(when (item) { "Overview" -> "⌂"; "Compare" -> "⇄"; "Calculator" -> "▦"; "Coupons" -> "◷"; else -> "▤" }, color = if (isSelected) Color.White else BannerMuted, fontSize = 19.sp, lineHeight = 22.sp)
-                Text(label, color = if (isSelected) Color.White else BannerMuted, fontSize = 9.sp, maxLines = 1)
+                Text(label, color = if (isSelected) Color.White else BannerMuted, fontSize = 10.sp, maxLines = 1)
             }
         }
     }
