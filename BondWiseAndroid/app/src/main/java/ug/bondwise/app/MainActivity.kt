@@ -815,7 +815,7 @@ fun BondWiseApp() {
                             }
                         }
                         Surface(color = SurfaceColor, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Line), shadowElevation = 1.dp, modifier = Modifier.weight(1f)) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("Highest ${best?.let { netReturnLabel(it) } ?: "Estimated Net Return"}", color = Muted, fontSize = 9.sp, maxLines = 1)
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(best?.name ?: "—", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
