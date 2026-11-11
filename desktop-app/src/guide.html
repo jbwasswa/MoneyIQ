@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Pocket Ledger User Guide</title>
+<style>
+:root{--ink:#13211e;--muted:#5b6d69;--line:#d9e3e0;--accent:#0b7a63;--bg:#fff;--soft:#eef3f0;--warn:#a8691a;--bad:#b93a32}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Segoe UI",system-ui,sans-serif}
+.layout{display:block}
+.side{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;padding:8px 16px;white-space:nowrap}
+.side b{display:none}
+.side a{color:var(--muted);text-decoration:none;font-size:14px;padding:6px 10px;border-radius:8px;flex:none}
+.side a:hover{background:var(--soft);color:var(--ink)}
+.side a.on{background:var(--soft);color:var(--accent);font-weight:700}
+.toTop{position:fixed;right:20px;bottom:20px;border:1px solid var(--line);background:var(--bg);color:var(--accent);font:600 14px "Segoe UI",system-ui,sans-serif;padding:8px 14px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.12);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .2s}
+.toTop.show{opacity:1;pointer-events:auto}
+@media(min-width:1000px){
+ .layout{display:grid;grid-template-columns:240px minmax(0,1fr);max-width:1120px;margin:0 auto}
+ .side{position:sticky;top:0;align-self:start;height:100vh;flex-direction:column;overflow-y:auto;border-bottom:0;border-right:1px solid var(--line);padding:28px 14px;gap:2px;white-space:normal}
+ .side b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:0 10px 8px}
+ .toc{display:none}
+ html{scroll-padding-top:24px}
+}
+.wrap{max-width:820px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:34px;line-height:1.15;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:24px;margin:44px 0 8px;padding-top:10px;border-top:2px solid var(--line);letter-spacing:-.005em}
+h3{font-size:17px;margin:24px 0 4px}
+p{margin:8px 0}ul,ol{padding-left:22px;margin:8px 0}li{margin:4px 0}
+.sub{color:var(--muted);font-size:17px;margin:0 0 20px}
+.toc{background:var(--soft);border-radius:14px;padding:16px 22px;margin:22px 0}
+.toc ol{columns:2;column-gap:32px;margin:6px 0}.toc a{color:var(--accent);text-decoration:none}
+.tip,.note{border-left:4px solid var(--accent);background:var(--soft);padding:10px 14px;border-radius:0 10px 10px 0;margin:14px 0}
+.note{border-color:var(--warn)}
+.tip b,.note b{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px}
+kbd{font:600 13px ui-monospace,Consolas,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px;background:#fff}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.g{color:#0b7a63;font-weight:700}.a{color:var(--warn);font-weight:700}.r{color:var(--bad);font-weight:700}
+.foot{margin-top:48px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:640px){.toc ol{columns:1}}
+@media print{.side,.toTop{display:none!important}.layout{display:block}.toc{display:block!important}.wrap{max-width:none;padding:0}h2{break-after:avoid}.tip,.note,table{break-inside:avoid}a{color:inherit}}
+@media(prefers-color-scheme:dark){:root{--ink:#e4eeeb;--muted:#8fa29d;--line:#243330;--accent:#3ccba4;--bg:#0a1210;--soft:#141f1c;--warn:#e3b04b;--bad:#f0786e}kbd{background:#141f1c}.g{color:#3ccba4}}
+</style></head><body><div class="layout"><nav class="side" id="side" aria-label="Contents"><b>Contents</b></nav><div class="wrap">
+
+<h1>Pocket Ledger</h1>
+<p class="sub">User guide &middot; Version 0.6.21 (MVP)</p>
+<p>Pocket Ledger helps you see where your money goes and where it is going. You record what you earn and spend, keep track of every account you own (cash, bank, mobile money, loans), set monthly budgets, and follow goals such as an emergency fund or a debt you want to clear. Everything is stored on your own computer.</p>
+
+<div class="tip"><b>Why Pocket Ledger exists</b>Pocket Ledger is built around financial discipline &mdash; because that's what it takes to achieve financial freedom. It helps you know where your money goes, build better spending and saving habits, and work deliberately toward the goals that matter to you, whether that's clearing a debt, building an emergency fund, or saving for something specific. You don't need a goal to benefit from the app; tracking your money well is valuable on its own. But when you do set one, Pocket Ledger keeps it visible and keeps you accountable, because the point isn't just to record your money &mdash; it's to help you reach financial freedom.</div>
+
+<div class="toc"><b>Contents</b><ol>
+<li><a href="#start">Getting started</a></li>
+<li><a href="#screen">Finding your way around</a></li>
+<li><a href="#accounts">Accounts</a></li>
+<li><a href="#tx">Recording transactions</a></li>
+<li><a href="#list">The Transactions page</a></li>
+<li><a href="#overview">The Overview</a></li>
+<li><a href="#reports">Reports</a></li>
+<li><a href="#budgets">Budgets</a></li>
+<li><a href="#goals">Goals</a></li>
+<li><a href="#settings">Settings</a></li>
+<li><a href="#backup">Backup, restore, import and export</a></li>
+<li><a href="#keys">Keyboard shortcuts</a></li>
+<li><a href="#help">Questions and problems</a></li>
+</ol></div>
+
+<h2 id="start">1. Getting started</h2>
+<h3>Opening the app</h3>
+<p>Unzip the folder anywhere (for example <b>C:\PocketLedger</b>) and double-click <b>Pocket Ledger.exe</b>. There is nothing to install. Keep the whole folder together. Windows may warn that it protected your PC because the app is not signed yet: choose <b>More info</b>, then <b>Run anyway</b>.</p>
+<p>Your data is kept separately from this folder, so you can unzip a newer version over an older one and keep everything.</p>
+<h3>Sample data</h3>
+<p>The first time you open Pocket Ledger it shows <b>sample data</b> (marked by a dashed banner) so you can explore. When you are ready to start for real, open <b>Settings &rarr; Backup &amp; restore</b> and choose <b>Clear sample data</b>. You can bring the samples back with <b>Load sample data</b>.</p>
+<h3>Your first five minutes</h3>
+<ol>
+<li><b>Choose your base currency.</b> Settings &rarr; Currencies. The base currency is the one totals are shown in. Add other currencies and their exchange rates if you use them.</li>
+<li><b>Add your accounts.</b> Accounts &rarr; Add account. Give each real wallet, bank account or mobile money account an opening balance.</li>
+<li><b>Look at your categories.</b> Settings &rarr; Categories. Rename, add or remove categories and subcategories to match your life.</li>
+<li><b>Record a transaction.</b> Press <kbd>N</kbd>.</li>
+<li><b>Set a budget or a goal</b> when you are ready (sections 8 and 9).</li>
+</ol>
+
+<h2 id="screen">2. Finding your way around</h2>
+<p>The left menu has the main pages: <b>Overview</b>, <b>Transactions</b>, <b>Reports</b>, <b>Budgets</b>, <b>Goals</b>, <b>Accounts</b> and <b>Settings</b>. The green <b>New transaction</b> button is always at the top. The box at the bottom of the menu shows your total across all accounts in the base currency.</p>
+<h3>Choosing the period</h3>
+<p>At the top of Overview, Transactions, Reports and Budgets there is a period picker: <b>Day</b>, <b>Week</b>, <b>Month</b> or <b>Year</b>. Next to it are arrows to move to the previous or next period. The label between the arrows names the period you are looking at (for example <i>November 2026</i>). Click the label to jump straight back to the current day, week, month or year.</p>
+<p>What you pick decides what the page shows: with <b>Day</b> only that day's transactions, with <b>Year</b> the whole year, and so on.</p>
+
+<h2 id="accounts">3. Accounts</h2>
+<p>An account is any place your money sits: cash in your pocket, a bank account, a mobile money wallet, a savings account, or a loan.</p>
+<h3>Adding an account</h3>
+<p>Go to <b>Accounts &rarr; Add account</b> and fill in:</p>
+<ul>
+<li><b>Name</b> &ndash; for example <i>Airtel Money</i>.</li>
+<li><b>Type</b> &ndash; groups and icons your accounts (Cash, Bank, Savings, Mobile money and so on). You can add your own types in Settings &rarr; Account types.</li>
+<li><b>Currency</b> &ndash; the currency this account holds. It is fixed once the account has transactions.</li>
+<li><b>Opening balance</b> &ndash; how much was in the account when you started using Pocket Ledger. Use a negative number for money you owe on it.</li>
+<li><b>Included in Totals</b> &ndash; ticked by default. Untick it to leave this account out of the total tiles and the menu total (useful for, say, money you hold on someone else's behalf).</li>
+<li><b>Notes</b> &ndash; anything you want to remember.</li>
+</ul>
+<h3>The totals at the top of Accounts</h3>
+<table>
+<tr><th>Tile</th><th>Meaning</th></tr>
+<tr><td><span class="g">Total assets</span></td><td>All accounts with a positive balance, added together (green).</td></tr>
+<tr><td><span class="r">Total liabilities</span></td><td>All accounts with a negative balance, added together (red).</td></tr>
+<tr><td>Balance</td><td>Assets minus liabilities. Green if positive, red if negative, neutral if zero.</td></tr>
+</table>
+<p>Accounts in other currencies are converted to your base currency at the rates in Settings &rarr; Currencies.</p>
+<h3>Loans</h3>
+<p>Two account types track loans: one for money other people owe you, one for money you owe. Which types play these roles is set in <b>Settings &rarr; Linked categories &amp; types</b>, so you can rename them freely (call them whatever you like &ndash; "Money lent", "IOUs", anything) without breaking loan tracking. A loan you owe shows as a negative balance, and it counts as a liability.</p>
+<h3>Deleting an account</h3>
+<p>An account can only be deleted when nothing uses it: no transactions, no repeating entries and no goals. The app tells you what is in the way.</p>
+
+<h2 id="tx">4. Recording transactions</h2>
+<p>Press <kbd>N</kbd> (or click <b>New transaction</b>) and choose what kind of entry it is:</p>
+<ul>
+<li><b>Expense</b> &ndash; money going out.</li>
+<li><b>Income</b> &ndash; money coming in.</li>
+<li><b>Transfer</b> &ndash; moving money between two of your own accounts.</li>
+</ul>
+<h3>Expense and income</h3>
+<p>Fill in the amount, the account, the category and the date. A <b>subcategory is required</b> when saving, so every entry says clearly what it was for (for example <i>Bills &ndash; Internet</i>). You can also add a payee or payer, a project, and a note.</p>
+<p>Click the category field and start typing to find a category quickly; hovering over a category previews its subcategories.</p>
+<p>A new entry starts with the <b>category, subcategory and account you used last</b> (kept separately for expenses, income and transfers), so repeat entries need fewer clicks. The very first time it starts with the first category in your list. You can change any of them.</p>
+<h3>Typing big amounts quickly</h3>
+<p>In the amount box you can type a letter after a number instead of all the zeros:</p>
+<table>
+<tr><th>Type</th><th>You get</th></tr>
+<tr><td><kbd>K</kbd> or <kbd>G</kbd> (thousand, "grand")</td><td>2K = 2,000 &nbsp;&middot;&nbsp; 10K = 10,000</td></tr>
+<tr><td><kbd>M</kbd> (million)</td><td>2M = 2,000,000 &nbsp;&middot;&nbsp; 1.5M = 1,500,000</td></tr>
+<tr><td><kbd>B</kbd> (billion)</td><td>1.2B = 1,200,000,000</td></tr>
+<tr><td><kbd>T</kbd> (trillion)</td><td>1T = 1,000,000,000,000</td></tr>
+<tr><td><kbd>H</kbd> (hundred)</td><td>1H = 100</td></tr>
+<tr><td><kbd>HT</kbd> (hundred thousand)</td><td>1HT = 100,000</td></tr>
+</table>
+<p>It works with calculations too: <b>2M+500K</b> gives 2,500,000. Capital or small letters both work. The same shortcuts work in a goal's target amount.</p>
+<h3>Add Next</h3>
+<p>If you have several entries to record, use <b>Add Next</b> instead of Save. It saves the entry and opens a fresh one that keeps the same category, so you do not have to pick it again.</p>
+<h3>Repeating entries</h3>
+<p>Use <b>Repeat</b> for things that happen regularly, such as rent or a salary. It is a dropdown on every transaction, new or saved, so you can save a transaction as a one-off and make it repeat later: open it, choose how often, and save. The entry itself stays as it is, and the next entry is added on the next due date.</p>
+<ul>
+<li><b>Repeat</b>: Does not repeat, Every day, Every week, Every 2 weeks, Every month, Every 3 months, Every year, or <b>Custom</b> (for example every 3 days).</li>
+<li><b>On</b>: for weekly entries choose the weekday, every weekday, weekends, or <i>Choose days</i> to tick several. For monthly entries choose the same date each month, the same weekday (for example the 2nd Monday), or the last day of the month.</li>
+<li><b>Ends</b>: never, on a date, or after a number of times.</li>
+</ul>
+<p>To stop a repeat, open one of its entries and choose <b>Does not repeat</b>. Entries already made are kept. Entries that match a repeating entry show its settings, and changes apply to future entries only.</p>
+<p>All your repeating entries are listed under <b>Settings &rarr; Recurring transactions</b>. Click a row (or <b>Edit</b>) to change how often, the next date, the end, the amount, category, account or note. <b>Delete</b> asks you to confirm, tells you which entries will no longer be added, and offers Undo. Entries already made stay.</p>
+<p>Repeating entries are added only when their date arrives. To see what is coming, open <b>Transactions</b> and use the forward arrow (up to a year ahead). Upcoming entries show greyed with an <i>Upcoming</i> tag. They are a preview: they do not count in totals, balances or reports until the day comes. Click one to change its repeat.</p>
+<h3>Transfers</h3>
+<p>Choose the account the money leaves (<b>From</b>) and the account it goes to (<b>To</b>). A <b>Transfer fee</b> can be added if you were charged one.</p>
+<p>When the two accounts use different currencies, enter what left one account and what arrived in the other; Pocket Ledger works out the rate. Each account's history stays in its own currency. For example, a USD 100 sale paid into a shilling account appears in the dollar account as USD 100 and in the shilling account as the shilling amount received, with a short note such as <i>From Dollar Account USD 100.00</i>.</p>
+<div class="tip"><b>Tip</b>Amounts in other currencies: when an expense or income is in a different currency from its account, the history line shows <i>Converted from USD 100.00 at 4,049</i>, so you can always see what happened.</div>
+<h3>Future-dated entries</h3>
+<p>Entries dated after today are marked <b>Upcoming</b>. In Settings you can choose whether they count in account balances and totals now or only when their date arrives.</p>
+
+<h2 id="list">5. The Transactions page</h2>
+<p>This is the full list for the period you have chosen, newest first. Each row shows the date, category, account, and the amount. The right-hand column shows the running balance of the account.</p>
+<ul>
+<li><b>Search</b> &ndash; press <kbd>/</kbd> and type a note, payee or category.</li>
+<li><b>Filter</b> &ndash; narrow by account, category, project and more. Active filters appear as small chips; use <b>Clear filter</b> to remove them.</li>
+<li><b>Open</b> an entry to see it, edit it or delete it.</li>
+</ul>
+<p>Clicking an account on the Overview filters Transactions to that account.</p>
+
+<h2 id="overview">6. The Overview</h2>
+<p>The Overview answers "how am I doing?" for the period you chose. At the top are four tiles: <b>Net</b> (income minus expense), <b>Income</b>, <b>Expense</b> and <b>Savings rate</b>. Each compares with the previous period up to the same point.</p>
+<p>Below them are cards:</p>
+<ul>
+<li><b>Spending pace</b> &ndash; a line chart comparing how much you have spent so far with the previous period at the same point. If your line sits below the dashed one, you are spending less than before.</li>
+<li><b>Where it went</b> &ndash; your spending split by category.</li>
+<li><b>Last six months</b> &ndash; income and expense side by side.</li>
+<li><b>Net worth trend</b> &ndash; your assets, liabilities and balance over six months.</li>
+<li><b>Budgets</b> &ndash; your four closest budgets.</li>
+<li><b>Goals</b> &ndash; your next goals by deadline.</li>
+<li><b>Recent</b> and <b>Accounts</b> &ndash; latest entries and balances.</li>
+</ul>
+<p>You can show, hide, reorder and choose the number of columns for these cards in <b>Settings &rarr; Overview layout</b>.</p>
+
+<h2 id="reports">7. Reports</h2>
+<p>Reports lets you analyse your money in more detail. Pick the period, choose <b>Expense</b>, <b>Income</b> or <b>Cash flow</b>, and choose how to group it: by category, subcategory, account, project or payee. You can view it as a pie chart, bars or a trend, and export the result as a CSV file for Excel.</p>
+
+<h2 id="budgets">8. Budgets</h2>
+<p>A budget is a monthly limit for one expense category. Open <b>Budgets</b>, click a category and enter the limit. The limit covers all its subcategories. Leave it empty to remove the budget.</p>
+<p>Each bar shows how much of the limit you have used this month. The bar turns amber as you approach the limit and red when you go over. The tiles at the top show your overall spending against all budgets.</p>
+<h3>Stopping or warning about overspending</h3>
+<p>In the same dialog, <b>When an expense would go over this limit</b> lets you choose how strict a budget is. Each budget has its own setting:</p>
+<table>
+<tr><th>Level</th><th>What happens when you save an expense that would go over the limit</th></tr>
+<tr><td><b>Off</b> (the default)</td><td>Nothing is checked. The bar simply turns red.</td></tr>
+<tr><td><b>Warn me first</b></td><td>A message tells you how far over you would be. Choose <b>Save anyway</b> to go ahead or <b>Cancel</b> to change the entry.</td></tr>
+<tr><td><b>Stop me from saving</b></td><td>The expense is not saved. You can go back and lower the amount, or choose <b>Edit budget</b> to change the limit. There is no override, so if you want to be able to go over, set the budget to Warn instead.</td></tr>
+</table>
+<p>Good to know:</p>
+<ul>
+<li>The check adds up the whole month of that category, including all its subcategories, for the month the expense is dated in. Expenses in other currencies are converted to your base currency first.</li>
+<li>It only checks <b>expenses</b>. Income, transfers, repeating entries that are added automatically, and imported or restored data are not checked, so your records always stay complete. They will still show up in red on the Budgets page.</li>
+<li>Editing an old expense is only checked if the edit makes the overspend bigger.</li>
+<li>Under <b>Stop</b>, once a category is over its limit, every further expense in it is refused until you raise the budget.</li>
+<li>A budget card shows <i>Stops overspending</i> or <i>Warns on overspend</i> when one of these is on.</li>
+</ul>
+
+<h2 id="goals">9. Goals</h2>
+<p>Goals help you work towards something: an emergency fund by a date, a debt cleared by a date, or money saved for something you want to buy. Open <b>Goals</b> in the left menu and click <b>Add goal</b>.</p>
+<h3>How a goal measures progress</h3>
+<p>Every goal follows <b>one account</b>. As that account's balance changes, the goal's progress changes by itself. You do not enter progress by hand. To save for a laptop, open a savings account for it and point the goal at that account.</p>
+<h3>Goal types</h3>
+<p>A goal has a type. Each type works in one of three ways:</p>
+<table>
+<tr><th>Works like</th><th>Use it for</th><th>Progress</th></tr>
+<tr><td><b>Save up to a target</b></td><td>Buying something, a savings pot</td><td>Account balance &divide; target</td></tr>
+<tr><td><b>Pay down to zero</b></td><td>Clearing a debt or loan</td><td>How much of the starting debt has been paid off</td></tr>
+<tr><td><b>Keep topped up</b></td><td>An emergency fund</td><td>Account balance &divide; target; the goal stays active</td></tr>
+</table>
+<p>The starting types are <i>Emergency fund</i>, <i>Purchase</i>, <i>Savings</i> and <i>Debt payoff</i>. In <b>Settings &rarr; Goal types</b> you can rename them, change their icons, add your own, or delete ones you do not use. A type that goals still use cannot be deleted, and there must always be at least one type of each kind.</p>
+<h3>Setting up a goal</h3>
+<ul>
+<li><b>Name</b> and <b>Type</b>.</li>
+<li><b>Account</b> &ndash; the account the goal follows. A debt goal needs an account with money owed (a negative balance).</li>
+<li><b>Target amount</b> &ndash; or, for a debt goal, the <b>amount owed at the start</b>. If you leave it empty for a debt, today's amount owed is used.</li>
+<li><b>Deadline</b> &ndash; optional.</li>
+<li><b>Note</b> &ndash; optional. A free-text reminder of why the goal matters or anything else about it; it shows on the goal's card once set.</li>
+</ul>
+<h3>Reading a goal card</h3>
+<p>The thick bar is your money progress, with the percentage at the right. Under it you see the amounts, a status word, how much time is left and the deadline date.</p>
+<p>The small dark <b>tick</b> on the bar marks where you should be by today if you were saving evenly from the day the goal began to its deadline. If the coloured bar is beyond the tick, you are ahead. If it falls short, you are behind.</p>
+<table>
+<tr><th>Status</th><th>What it means</th></tr>
+<tr><td><span class="g">Ahead / On track</span></td><td>Progress is at or beyond the tick, or within five percentage points of it.</td></tr>
+<tr><td><span class="a">Behind</span></td><td>More than five points short. The card suggests what to put aside, for example <i>Save UGX 922,000 a month to catch up</i>.</td></tr>
+<tr><td><span class="r">Overdue</span></td><td>The deadline has passed and the goal is not reached. Time left shows as <i>Overdue by 3 days</i>.</td></tr>
+<tr><td><span class="g">Reached / Cleared</span></td><td>The target is met or the debt is paid.</td></tr>
+<tr><td><span class="a">Below target</span></td><td>A keep-topped-up goal that reached its target once and then dropped below it. The card says how much to add.</td></tr>
+</table>
+<p>A goal with no deadline shows only the money bar. Time left is shown in days when under 60 days, otherwise in months and days.</p>
+<h3>When a goal is finished</h3>
+<ul>
+<li><b>Debt goals</b> complete by themselves when the amount owed reaches zero, and move to <b>Completed</b>.</li>
+<li><b>Save goals</b> show a <b>Mark as done</b> button once the target is reached. The app asks rather than closing it, in case you want to keep saving. Marking one done offers an <b>Undo</b> for a few seconds.</li>
+<li><b>Keep-topped-up goals</b> stay active so you can see if you slip below target.</li>
+</ul>
+<p>Use <b>Show completed</b> under the goals to see finished ones with the date you reached them. You can <b>Reopen</b> or <b>Delete</b> them. An overdue goal is never removed for you: edit it to move the deadline or change the target, or delete it. Deleting a goal always asks you to confirm first, whether from its edit screen or from this list.</p>
+
+<h2 id="settings">10. Settings</h2>
+<table>
+<tr><th>Item</th><th>What it does</th></tr>
+<tr><td>Account types</td><td>Names and icons for grouping accounts.</td></tr>
+<tr><td>Goal types</td><td>Names, icons and behaviour for goals.</td></tr>
+<tr><td>Categories</td><td>Expense, income and transfer categories with subcategories. Add, rename, recolour and change icons.</td></tr>
+<tr><td>Currencies</td><td>Your base currency, other currencies and exchange rates.</td></tr>
+<tr><td>Payees / Payers</td><td>People and organisations you pay, and who pay you.</td></tr>
+<tr><td>Projects</td><td>Tag entries to an event such as a trip or a renovation, then group Reports by project.</td></tr>
+<tr><td>Recurring transactions</td><td>Repeating entries that are created automatically.</td></tr>
+<tr><td>Tip on launch</td><td>Shows a short, rotating tip on the Overview page each time you open the app &mdash; a mix of feature tips and money-habit reminders. It fades away on its own after a few seconds, or you can dismiss it sooner. Turn it off, or choose whether it draws from App tips, Money tips or both, under Settings &rarr; General.</td></tr>
+<tr><td>Tips</td><td>Browse every tip the app can show you, filtered by App tips or Money tips.</td></tr>
+<tr><td>Backup &amp; restore</td><td>See section 11.</td></tr>
+</table>
+<p>The rest of the Settings page holds:</p>
+<ul>
+<li><b>Balances</b> &ndash; whether future-dated entries count now.</li>
+<li><b>General</b> &ndash; date format, whether account cards show monthly In/Out/Net, and which page opens at start.</li>
+<li><b>Appearance</b> &ndash; Light, Dark or follow your device, and eight accent colours. Money in stays green and money out stays red whatever colour you choose.</li>
+<li><b>Linked categories &amp; types</b> &ndash; pick which category/subcategory records transfer fees, and which account types represent money you've lent out or borrowed. Whichever is picked can't be deleted until you choose a different one there first; changing the pick does not touch past transactions.</li>
+<li><b>Overview layout</b> &ndash; which cards show and in what order.</li>
+<li><b>Sidebar</b> &ndash; what shows under the left menu: <i>Needs attention</i> (budgets over their limit, overdue goals, recurring entries due this week, each one a link), <i>Next goal</i>, <i>This month at a glance</i>, <i>Assets and liabilities</i> and <i>Total</i>. Show or hide each one and move it up or down. By default only Needs attention and Total show. On a short window the items at the bottom drop away so the menu never gets cramped; the Total always stays.</li>
+</ul>
+
+<h2 id="backup">11. Backup, restore, import and export</h2>
+<h3>Automatic backups</h3>
+<p>Pocket Ledger saves a backup when you close it and keeps the last 10 in <b>Documents\Pocket Ledger Backups</b>. Use <b>File &rarr; Back up now</b> at any time, and <b>File &rarr; Open backup folder</b> to find them.</p>
+<h3>Restoring</h3>
+<p>In <b>Settings &rarr; Backup &amp; restore</b> use <b>Restore from text</b> and paste the contents of a backup file. Restoring replaces what is in the app, so make a fresh backup first if unsure.</p>
+<h3>Importing and exporting</h3>
+<ul>
+<li><b>Import from CSV</b> &ndash; paste text in the layout shown on the page.</li>
+<li><b>Export as CSV</b> &ndash; save your transactions to open in Excel.</li>
+</ul>
+<h3>Where your data lives</h3>
+<p>Your data is a single file on this computer: <b>%APPDATA%\Pocket Ledger\pocket-ledger.db</b>. <b>File &rarr; Open data folder</b> takes you there. It is not sent anywhere. If you use more than one computer, move data between them with a backup file.</p>
+<div class="note"><b>Important</b>Backups are your safety net. Copy a recent backup to a USB drive or cloud folder now and then, so a damaged computer does not take your records with it.</div>
+
+<h2 id="keys">12. Keyboard shortcuts</h2>
+<table>
+<tr><td><kbd>N</kbd></td><td>New transaction</td></tr>
+<tr><td><kbd>/</kbd></td><td>Search transactions</td></tr>
+<tr><td><kbd>[</kbd></td><td>Previous day, week, month or year</td></tr>
+<tr><td><kbd>]</kbd></td><td>Next day, week, month or year</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>Close a window</td></tr>
+<tr><td><kbd>F1</kbd></td><td>Open this guide</td></tr>
+</table>
+
+<h2 id="help">13. Questions and problems</h2>
+<h3>A red message appears at the top of the window</h3>
+<p>It means the last change could not be saved. Your entry is still on screen but is not stored. Use <b>File &rarr; Back up now</b>, then tell the developer exactly what the message says.</p>
+<h3>My balance looks wrong</h3>
+<p>Check the account's <b>opening balance</b> first, then look for entries dated in the future (see <b>Settings &rarr; Balances</b>). For foreign-currency accounts, check the exchange rates under Currencies.</p>
+<h3>A total does not include an account</h3>
+<p>Open the account and check that <b>Included in Totals</b> is ticked.</p>
+<h3>I cannot delete something</h3>
+<p>Accounts, categories, subcategories and goal types cannot be deleted while entries or goals still use them. The message says what is in the way. Move or delete those first. A category, subcategory or account type currently picked in Settings &rarr; Linked categories &amp; types (as the Transfer fee category, or a loan account type) also cannot be deleted until you choose a different one there.</p>
+<h3>I made a mistake</h3>
+<p>Open the entry and edit or delete it. Deleting a goal asks you to confirm, then offers an <b>Undo</b> for a few seconds.</p>
+
+<h3>About this version</h3>
+<p>Version 0.6.21 is the first complete release (MVP) of Pocket Ledger. It covers accounts, transactions, transfers between currencies, budgets, goals, reports, repeating entries and backups. It does not connect to banks or mobile money services, and it does not sync between devices by itself. Please send your suggestions and any problems to the developer.</p>
+
+<p class="foot">Pocket Ledger 0.6.21 &middot; User guide</p>
+</div></div><button class="toTop" id="toTop" type="button">&uarr; Back to top</button>
+<script>
+(function(){
+var hs=[].slice.call(document.querySelectorAll('h2[id]')),side=document.getElementById('side'),top=document.getElementById('toTop');
+hs.forEach(function(h){var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent.replace(/^\d+\.\s*/,'');a.setAttribute('data-id',h.id);side.appendChild(a)});
+var links=[].slice.call(side.querySelectorAll('a'));
+function spy(){var y=window.scrollY+120,cur=hs[0];hs.forEach(function(h){if(h.offsetTop<=y)cur=h});
+ links.forEach(function(a){var on=a.getAttribute('data-id')===cur.id;a.classList.toggle('on',on);if(on&&window.innerWidth<1000){var l=a.offsetLeft-60;side.scrollLeft=l}});
+ top.classList.toggle('show',window.scrollY>600)}
+window.addEventListener('scroll',spy,{passive:true});window.addEventListener('resize',spy);spy();
+top.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'})});
+})();
+</script></body></html>
