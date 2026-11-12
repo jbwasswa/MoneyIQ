@@ -650,6 +650,13 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .ovr .ctl .vis{display:inline-flex;align-items:center;gap:6px;width:88px;justify-content:flex-start;font-size:12.5px;font-weight:600;color:var(--accent)}
 .ovr.off .n{opacity:.5}.ovr.off .vis{color:var(--muted)}
 @media(max-width:900px){.ovl{display:block}.ovr:nth-child(3){border-bottom:1px solid var(--line)}.ovr:last-child{border-bottom:0}}
+.tapl{display:flex;flex-direction:column;gap:6px}
+.tapl .ovr{border-bottom:none;border:1px solid var(--line);border-radius:10px;padding:9px 10px;cursor:pointer}
+.tapl .ovr .n{cursor:pointer}
+.tapl .ovr.picked{border-color:var(--accent);background:var(--line)}
+.tapl .ovr .badge{font-size:10px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:2px 7px;border-radius:999px;margin-left:8px;letter-spacing:.02em}
+.tapl .endzone{border:1.5px dashed var(--line);border-radius:10px;padding:9px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer}
+.tapl .endzone:hover{border-color:var(--accent);color:var(--accent)}
 
 .g.ovg{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(min-width:1300px){.g.ovg.c3{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1453,10 +1460,16 @@ function ovHidden(){return String(S.ovHide||'').split(',').filter(Boolean)}
 function ovSections(){var h=ovHidden();return ovOrderAll().filter(function(k){return h.indexOf(k)<0})}
 function ovName(k){return OV_SECS.filter(function(x){return x[0]===k})[0][1]}
 function ovLayoutHTML(){
-  var ord=ovOrderAll(),hid=ovHidden();
-  return '<section class="card"><div class="chd"><h2>Overview layout</h2><button class="lnk" data-a="ovreset">Reset</button></div><div class="setrow" style="padding-top:4px"><div><b>Columns</b><p>How many sections sit side by side. Narrow windows show fewer automatically.</p></div><div class="seg"><button class="'+(ovCols()===2?'on':'')+'" data-a="ovcols" data-v="2">2</button><button class="'+(ovCols()===3?'on':'')+'" data-a="ovcols" data-v="3">3</button></div></div><p class="sub" style="margin:8px 0 8px">Choose which sections appear on Overview and in what order. They fill the page left to right.</p><div class="ovl">'+ord.map(function(k,i){
-    var off=hid.indexOf(k)>=0;
-    return '<div class="ovr'+(off?' off':'')+'"><span class="n"><em class="num">'+(i+1)+'</em>'+esc(ovName(k))+'</span><span class="ctl"><button data-a="ovmove" data-v="'+k+'|-1" aria-label="Move '+esc(ovName(k))+' earlier"'+(i===0?' disabled':'')+'>'+ico('lu:chevron-up',16)+'</button><button data-a="ovmove" data-v="'+k+'|1" aria-label="Move '+esc(ovName(k))+' later"'+(i===ord.length-1?' disabled':'')+'>'+ico('lu:chevron-down',16)+'</button><button class="vis" data-a="ovtoggle" data-v="'+k+'" aria-pressed="'+(!off)+'" aria-label="'+(off?'Show ':'Hide ')+esc(ovName(k))+'">'+ico(off?'lu:eye-off':'lu:eye',16)+'<span>'+(off?'Hidden':'Shown')+'</span></button></span></div>'}).join('')+'</div></section>';
+  var ord=ovOrderAll(),hid=ovHidden(),pick=U.ovPick;
+  var rows='';
+  ord.forEach(function(k,i){
+    if(pick!=null)rows+='<div class="endzone" data-a="ovDrop" data-v="'+i+'">Place here</div>';
+    var off=hid.indexOf(k)>=0,picked=(pick===k);
+    rows+='<div class="ovr'+(off?' off':'')+(picked?' picked':'')+'" data-a="ovPick" data-v="'+k+'"><span class="n"><em class="num">'+(i+1)+'</em>'+esc(ovName(k))+(picked?'<span class="badge">Picked</span>':'')+'</span><span class="ctl"><button class="vis" data-a="ovtoggle" data-v="'+k+'" aria-pressed="'+(!off)+'" aria-label="'+(off?'Show ':'Hide ')+esc(ovName(k))+'">'+ico(off?'lu:eye-off':'lu:eye',16)+'<span>'+(off?'Hidden':'Shown')+'</span></button></span></div>';
+  });
+  if(pick!=null)rows+='<div class="endzone" data-a="ovDrop" data-v="'+ord.length+'">Place here</div>';
+  var hint=pick!=null?'Tap where &ldquo;'+esc(ovName(pick))+'&rdquo; should go.':'Tap a section to pick it up, then tap where it should go.';
+  return '<section class="card"><div class="chd"><h2>Overview layout</h2><button class="lnk" data-a="ovreset">Reset</button></div><div class="setrow" style="padding-top:4px"><div><b>Columns</b><p>How many sections sit side by side. Narrow windows show fewer automatically.</p></div><div class="seg"><button class="'+(ovCols()===2?'on':'')+'" data-a="ovcols" data-v="2">2</button><button class="'+(ovCols()===3?'on':'')+'" data-a="ovcols" data-v="3">3</button></div></div><p class="sub" style="margin:8px 0 8px">'+hint+'</p><div class="tapl">'+rows+'</div></section>';
 }
 function sbLayoutHTML(){
   var ord=sbOrderAll(),hid=sbHidden();
@@ -1717,9 +1730,30 @@ function accRowHTML(a){
   var b=bal(a),foreign=a.cur!==S.base;
   return '<div class="arow-wrap"><button class="arow" data-a="accFilter" data-v="'+a.id+'" style="border-bottom:0"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+(foreign?' <small class="num" style="font-weight:400;color:var(--muted)">'+esc(a.cur)+'</small>':'')+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button><button class="ib" data-a="viewAcc" data-v="'+a.id+'" aria-label="View '+esc(a.name)+' account details" style="flex:none">'+I.right+'</button></div>';
 }
+function accOrderAll(){
+  var ids=S.accounts.map(function(a){return a.id}),got=String(S.accOrder||'').split(',').filter(function(k){return ids.indexOf(k)>=0}),seen={},out=[];
+  got.concat(ids).forEach(function(k){if(!seen[k]){seen[k]=1;out.push(k)}});return out;
+}
+function orderedAccounts(){
+  var ord=accOrderAll(),byId={};S.accounts.forEach(function(a){byId[a.id]=a});
+  return ord.map(function(id){return byId[id]}).filter(Boolean);
+}
+function accOrderHTML(){
+  var ord=accOrderAll(),byId={},pick=U.accPick;S.accounts.forEach(function(a){byId[a.id]=a});
+  var rows='';
+  ord.forEach(function(id,i){
+    var a=byId[id];if(!a)return;
+    if(pick!=null)rows+='<div class="endzone" data-a="accDrop" data-v="'+i+'">Place here</div>';
+    var picked=(pick===id);
+    rows+='<div class="ovr'+(picked?' picked':'')+'" data-a="accPick" data-v="'+id+'"><span class="n"><em class="num">'+(i+1)+'</em>'+atypeIcon(a.kind,16)+' '+esc(a.name)+(picked?'<span class="badge">Picked</span>':'')+'</span></div>';
+  });
+  if(pick!=null)rows+='<div class="endzone" data-a="accDrop" data-v="'+ord.length+'">Place here</div>';
+  var hint=pick!=null?'Tap where it should go.':'Tap an account to pick it up, then tap where it should go.';
+  return '<div class="wrap"><section class="card"><div class="chd"><h2>Reorder accounts</h2><button class="lnk" data-a="accreset">Reset</button></div><p class="sub" style="margin:8px 0 8px">'+hint+'</p><div class="tapl">'+rows+'</div></section></div>';
+}
 function accountsHTML(){
   var m=monthTx();
-  var cards=S.accounts.map(function(a){
+  var cards=orderedAccounts().map(function(a){
     var b=bal(a),inn=0,out=0,foreign=a.cur!==S.base;
     m.forEach(function(t){if(t.type==='inc'&&t.acc===a.id)inn+=t.amount;if(t.type==='exp'&&t.acc===a.id)out+=t.amount;if(t.type==='xfer'){if(t.to===a.id)inn+=(t.amountTo==null?t.amount:t.amountTo);if(t.acc===a.id)out+=t.amount}});
     var d=dec(a.cur);
@@ -1728,10 +1762,11 @@ function accountsHTML(){
   var T=totals(),nA=0,nL=0,nX=S.accounts.length-T.count,kv=function(v,neg){return (neg?'−':'')+'<span class="kcur">'+esc(S.base)+'</span> '+fmt(v)};
   S.accounts.forEach(function(a){if(!inTot(a))return;var v=bal(a);if(v>0)nA++;else if(v<0)nL++});
   var kp='<div class="kpis"><div class="kpi tin"><span class="lab">Total assets</span><strong class="kv num">'+kv(T.a)+'</strong><span class="kd">'+nA+' account'+(nA===1?'':'s')+' with money in them</span></div><div class="kpi tout"><span class="lab">Total liabilities</span><strong class="kv num">'+kv(T.l)+'</strong><span class="kd">'+nL+' account'+(nL===1?'':'s')+' you owe on</span></div><div class="kpi hero'+(T.n>0?' good':T.n<0?' bad':'')+'"><span class="lab">Balance</span><strong class="kv num">'+kv(Math.abs(T.n),T.n<0)+'</strong><span class="kd">Assets minus liabilities'+(nX?' · '+nX+' account'+(nX===1?'':'s')+' left out':'')+', at today\'s rates</span></div></div>';
-  var incl=S.accounts.filter(inTot),excl=S.accounts.filter(function(a){return !inTot(a)});
+  var incl=orderedAccounts().filter(inTot),excl=orderedAccounts().filter(function(a){return !inTot(a)});
   var listRows=incl.map(accRowHTML).join('')+(excl.length?'<div class="seclabel">Not included in totals</div>'+excl.map(accRowHTML).join(''):'');
   var mobList=S.accounts.length?'<section class="card only-mob" style="padding:4px 18px">'+listRows+'</section>':'';
-  return '<div class="wrap">'+kp+mobList+'<div class="g mob-hide">'+cards+'</div>'+loanCards()+'<button class="btn ghost" data-a="addAcc" style="align-self:flex-start">Add account</button></div>';
+  var reorderBtn=S.accounts.length>1?'<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="tab" data-v="accorder" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:arrow-up-down',16)+'Reorder</button></div>':'';
+  return '<div class="wrap">'+kp+reorderBtn+mobList+'<div class="g mob-hide">'+cards+'</div>'+loanCards()+'<button class="btn ghost" data-a="addAcc" style="align-self:flex-start">Add account</button></div>';
 }
 function rateDec(r){return r>=100?0:r>=1?2:4}
 function categoriesHTML(){
@@ -1995,10 +2030,11 @@ function generalSettingsHTML(){
   return '<div class="wrap"><section class="card"><h2>General</h2><div class="setrow"><div><b>Date format</b><p>How dates appear everywhere in the app. Backups and exports always use year-month-day.</p></div><select id="datefmt" aria-label="Date format">'+DATE_FORMATS.map(function(f){return '<option value="'+f+'"'+(S.dateFmt===f?' selected':'')+'>'+fmtDate(iso(new Date()),f)+'</option>'}).join('')+'</select></div><div class="setrow"><div><b>Monthly In, Out and Net on account cards</b><p>Show the money in, out and the net change for the selected month on each account card. Balances always cover all time.</p></div><div class="seg"><button class="'+(S.showInOut!==false?'on':'')+'" data-a="showio" data-v="1">Show</button><button class="'+(S.showInOut===false?'on':'')+'" data-a="showio" data-v="0">Hide</button></div></div><div class="setrow"><div><b>Start page</b><p>The page Pocket Ledger opens on.</p></div><select id="startpage" aria-label="Start page">'+START_PAGES.map(function(o){return '<option value="'+o[0]+'"'+((S.startPage||'overview')===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div><div class="setrow"><div><b>Choosing a category</b><p>List opens a full picker with your categories on the left, subcategories on the right, search and your usual options. Chips show every category on the entry form, which suits a short list.</p></div><div class="seg"><button class="'+(S.catPicker!=='chips'?'on':'')+'" data-a="catstyle" data-v="list">List</button><button class="'+(S.catPicker==='chips'?'on':'')+'" data-a="catstyle" data-v="chips">Chips</button></div></div></section></div>';
 }
 function linkedCatsViewHTML(){return '<div class="wrap">'+linkedCatsHTML()+'</div>'}
+function ovLayoutViewHTML(){return '<div class="wrap">'+ovLayoutHTML()+'</div>'}
 function settingsHTML(){
   var subs=S.cats.reduce(function(s,c){return s+(c.subs||[]).length},0),np=(S.payees||[]).length,nr=(S.payers||[]).length;
   var rows=[['accounttypes','Account types',S.accountTypes.length+' types · icons for your accounts',I.wallet],['goaltypes','Goal types',S.goalTypes.length+' types · save, pay down or keep topped up',I.flag],['categories','Categories',S.cats.length+' categories · '+subs+' subcategories',I.tags],['currencies','Currencies','Base '+S.base+' · '+S.currencies.length+' currencies and exchange rates',I.coin],['payees','Payees',np+' payee'+(np===1?'':'s'),I.store],['payers','Payers',nr+' payer'+(nr===1?'':'s'),I.person],['projects','Projects',S.projects.length+' project'+(S.projects.length===1?'':'s'),I.folder],['recurring','Recurring transactions',S.recurring.length+' active',I.repeat],['tips','Tips',TIPS.length+' tips · app features and money habits',ico('lu:lightbulb',20)],['data','Backup & restore',S.lastBackup?'Last backup '+shortDate(S.lastBackup):'Back up, restore and import data',I.cloudup]];
-  var mobRows=[['appearance','Appearance','Theme and accent colour',ico('lu:palette',20)],['balances','Balances','Future-dated transactions',ico('lu:scale',20)],['general','General','Date format, start page, category picker',ico('lu:settings-2',20)],['linkedcats','Linked categories & types','Transfer fee and loan account types',ico('lu:link-2',20)]];
+  var mobRows=[['appearance','Appearance','Theme and accent colour',ico('lu:palette',20)],['balances','Balances','Future-dated transactions',ico('lu:scale',20)],['general','General','Date format, start page, category picker',ico('lu:settings-2',20)],['linkedcats','Linked categories & types','Transfer fee and loan account types',ico('lu:link-2',20)],['ovlayout','Overview layout','Choose and order Overview sections',ico('lu:layout-grid',20)]];
   var hub=function(x){return '<button class="hub" data-a="tab" data-v="'+x[0]+'"><span class="hi">'+x[3]+'</span><span class="ht"><b>'+x[1]+'</b><small>'+esc(x[2])+'</small></span>'+I.right+'</button>'};
   var tipsCard='<section class="card"><h2>Tips</h2><div class="setrow"><div><b>Tip on launch</b><p>Show a short tip on the Overview page each time the app opens.</p></div><div class="seg"><button class="'+(S.tipOnLaunch!==false?'on':'')+'" data-a="tiptoggle" data-v="1">Show</button><button class="'+(S.tipOnLaunch===false?'on':'')+'" data-a="tiptoggle" data-v="0">Hide</button></div></div>'+(S.tipOnLaunch!==false?'<div class="setrow"><div><b>Tips to show on launch</b><p>Which category rotates when the app opens. Browse them all under Settings → Tips.</p></div><div class="seg"><button class="'+((S.tipShow||'all')==='all'?'on':'')+'" data-a="tipshow" data-v="all">All</button><button class="'+(S.tipShow==='app'?'on':'')+'" data-a="tipshow" data-v="app">App tips</button><button class="'+(S.tipShow==='money'?'on':'')+'" data-a="tipshow" data-v="money">Money tips</button></div></div>':'')+'</section>';
   return '<div class="wrap"><section class="card" style="padding:0"><div class="hubs">'+rows.map(hub).join('')+'</div></section>'+
@@ -2012,10 +2048,10 @@ function tipsHTML(){
   return '<div class="wrap"><section class="card"><p class="sub" style="margin-top:0">All the tips Pocket Ledger can show you on launch &mdash; app features and money habits.</p><div class="seg" style="margin-bottom:4px"><button class="'+(f==='all'?'on':'')+'" data-a="tipsfilt" data-v="all">All</button><button class="'+(f==='app'?'on':'')+'" data-a="tipsfilt" data-v="app">App tips</button><button class="'+(f==='money'?'on':'')+'" data-a="tipsfilt" data-v="money">Money tips</button></div>'+(list.length?list.map(function(t){return '<div class="tiprow"><span class="tipcat '+t[1]+'">'+(t[1]==='app'?'App':'Money')+'</span><p>'+esc(t[0])+'</p></div>'}).join(''):'<div class="empty">No tips in this category.</div>')+'</section></div>';
 }
 var START_PAGES=[['overview','Overview'],['tx','Transactions'],['reports','Reports'],['budgets','Budget'],['accounts','Accounts']];
-var VIEWS={overview:overviewHTML,tx:txViewHTML,reports:reportsHTML,budgets:budgetsHTML,goals:goalsHTML,accounts:accountsHTML,categories:categoriesHTML,currencies:currenciesHTML,payees:payeesHTML,accounttypes:atypesHTML,goaltypes:gtypesHTML,payers:payersHTML,projects:projectsHTML,recurring:recurringHTML,data:dataHTML,tips:tipsHTML,settings:settingsHTML,appearance:appearanceHTML,balances:balancesSettingsHTML,general:generalSettingsHTML,linkedcats:linkedCatsViewHTML};
-var TITLES={goals:'Goals',accounttypes:'Account types',goaltypes:'Goal types',overview:'Overview',tx:'Transactions',reports:'Reports',budgets:'Budgets',accounts:'Accounts',categories:'Categories',currencies:'Currencies',payees:'Payees',payers:'Payers',projects:'Projects',recurring:'Recurring',data:'Backup & restore',tips:'Tips',settings:'Settings',appearance:'Appearance',balances:'Balances',general:'General',linkedcats:'Linked categories & types'};
+var VIEWS={overview:overviewHTML,tx:txViewHTML,reports:reportsHTML,budgets:budgetsHTML,goals:goalsHTML,accounts:accountsHTML,categories:categoriesHTML,currencies:currenciesHTML,payees:payeesHTML,accounttypes:atypesHTML,goaltypes:gtypesHTML,payers:payersHTML,projects:projectsHTML,recurring:recurringHTML,data:dataHTML,tips:tipsHTML,settings:settingsHTML,appearance:appearanceHTML,balances:balancesSettingsHTML,general:generalSettingsHTML,linkedcats:linkedCatsViewHTML,ovlayout:ovLayoutViewHTML,accorder:accOrderHTML};
+var TITLES={goals:'Goals',accounttypes:'Account types',goaltypes:'Goal types',overview:'Overview',tx:'Transactions',reports:'Reports',budgets:'Budgets',accounts:'Accounts',categories:'Categories',currencies:'Currencies',payees:'Payees',payers:'Payers',projects:'Projects',recurring:'Recurring',data:'Backup & restore',tips:'Tips',settings:'Settings',appearance:'Appearance',balances:'Balances',general:'General',linkedcats:'Linked categories & types',ovlayout:'Overview layout',accorder:'Reorder accounts'};
 var MONTHLY={overview:1,tx:1,reports:1,budgets:1};
-var SUBV={accounttypes:1,goaltypes:1,categories:1,currencies:1,payees:1,payers:1,projects:1,recurring:1,data:1,tips:1,appearance:1,balances:1,general:1,linkedcats:1};
+var SUBV={accounttypes:1,goaltypes:1,categories:1,currencies:1,payees:1,payers:1,projects:1,recurring:1,data:1,tips:1,appearance:1,balances:1,general:1,linkedcats:1,ovlayout:1,accorder:1};
 
 /* ---------- chrome ---------- */
 var SB_ITEMS=[['attn','Needs attention'],['goal','Next goal'],['month','This month at a glance'],['al','Assets and liabilities'],['total','Total']];
@@ -2073,7 +2109,7 @@ function fwdOk(nr){var td=iso(new Date());return nr[1]<td||(U.view==='tx'&&dAdd(
 function renderTop(){
   var v=U.view,subv=!!SUBV[v];
   var scAcc=v==='tx'?scopedAccId():'';
-  var back=subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':(v==='settings'?'':'<button class="ib mob" data-a="tab" data-v="settings" aria-label="Settings menu">'+I.menu+'</button>'));
+  var back=v==='accorder'?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':(v==='settings'?'':'<button class="ib mob" data-a="tab" data-v="settings" aria-label="Settings menu">'+I.menu+'</button>'));
   var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
   var rg=(v==='tx'&&U.f.range)?[U.f.range.from,U.f.range.to]:(v==='reports'&&U.r.period!=='month')?rptRange():null;
   if(MONTHLY[v]){
@@ -2112,7 +2148,7 @@ function fillRepeat(E,r){
   if(r.end){E.rend='date';E.rdate=r.end}else if(r.cnt>0){E.rend='count';E.rcnt=String(r.cnt)}else E.rend='';
 }
 function openSheet(t){
-  var exSh0=$('#sheet');if(exSh0)exSh0.classList.remove('note-focus');
+  var exSh0=$('#sheet');if(exSh0)exSh0.classList.toggle('note-focus',!!t);
   if(t){var ac=acur(t.acc),tc=t.txnCur||ac;U.sheet={id:t.id,type:t.type,expr:String(t.txnAmount!=null?t.txnAmount:t.amount),txnCur:tc,txnRate:String(t.txnRate||configuredFxRate(tc,ac)),cat:t.cat||(t.type==='xfer'?(firstCat('xfer')||{}).id:''),sub:t.sub||'',acc:t.acc,to:t.to||otherAcc(t.acc),date:t.date,note:t.note||'',payee:t.payee||'',project:t.project||'',rate:String(t.rate||1),origCur:ac,origRate:t.rate||1,recv:(t.type==='xfer'&&t.amountTo!=null&&acur(t.to)!==ac)?String(t.amountTo):null,repeat:'',fee:(function(){var f=t.type==='xfer'?feeRow(t.id):null;return f?String(f.amount):''})()}}
   if(t){var mr=recFor(t);if(mr){U.sheet.recId=mr.id;fillRepeat(U.sheet,mr)}}
   else{var a=S.lastAcc&&acct(S.lastAcc)?S.lastAcc:S.accounts[0].id;
@@ -2623,7 +2659,7 @@ function gtypesHTML(){
 
 /* ---------- actions ---------- */
 var A={
-  tab:function(v){U.view=v;render()},
+  tab:function(v){if(v==='tx'&&U.scopeAcc){U.scopeAcc='';U.f.acc=''}if(v!=='accorder')U.accPick=null;if(v!=='ovlayout'&&v!=='settings')U.ovPick=null;U.view=v;render()},
   prev:function(){var ep=effPer();goDate(perShift(-1,ep,ep==='month'?U.ym+'-01':U.pd));U.f.range=null;render(true)},
   next:function(){var ep=effPer(),b=ep==='month'?U.ym+'-01':U.pd;if(fwdOk(perOf(ep,b))){goDate(perShift(1,ep,b));U.f.range=null;render(true)}},
   today:function(){goDate(iso(new Date()));U.f.range=null;render(true)},
@@ -2881,13 +2917,17 @@ var A={
   discardDlg:function(){U.dlg=null;renderDlg()},
   keepEditing:function(){var u=document.querySelector('.unsaved');if(u)u.remove()},
   discardSheet:function(){U.sheet=null;U.sheetSnap=null;renderSheet()},
-  ovmove:function(v){var q=v.split('|'),o=ovOrderAll(),i=o.indexOf(q[0]),j=i+(+q[1]);if(i<0||j<0||j>=o.length)return;var t=o[i];o[i]=o[j];o[j]=t;S.ovOrder=o.join(',');save();render(true)},
+  ovPick:function(k){U.ovPick=(U.ovPick===k)?null:k;render(true)},
+  ovDrop:function(v){var pick=U.ovPick;if(pick==null)return;var o=ovOrderAll(),i=o.indexOf(pick);if(i<0){U.ovPick=null;render(true);return}var dest=+v;var item=o.splice(i,1)[0];if(i<dest)dest--;dest=Math.max(0,Math.min(o.length,dest));o.splice(dest,0,item);S.ovOrder=o.join(',');U.ovPick=null;save();render(true)},
   ovtoggle:function(k){var h=ovHidden(),i=h.indexOf(k);if(i>=0)h.splice(i,1);else{if(ovSections().length<=1)return toast('Keep at least one section on Overview');h.push(k)}S.ovHide=h.join(',');save();render(true)},
   sbmove:function(v){var q=v.split('|'),o=sbOrderAll(),i=o.indexOf(q[0]),j=i+(+q[1]);if(i<0||j<0||j>=o.length)return;var t=o[i];o[i]=o[j];o[j]=t;S.sbOrder=o.join(',');save();render(true)},
   sbtoggle:function(k){var h=sbHidden(),i=h.indexOf(k);if(i>=0)h.splice(i,1);else h.push(k);S.sbHide=h.join(',');save();render(true)},
   sbreset:function(){S.sbOrder='';S.sbHide=SB_DEFAULT_HIDE;save();render(true);toast('Sidebar reset')},
   ovcols:function(v){S.ovCols=(v==='3'?3:2);save();render(true)},
-  ovreset:function(){S.ovOrder='';S.ovHide='';S.ovCols=2;save();render(true);toast('Overview layout reset')},
+  ovreset:function(){S.ovOrder='';S.ovHide='';S.ovCols=2;U.ovPick=null;save();render(true);toast('Overview layout reset')},
+  accPick:function(id){U.accPick=(U.accPick===id)?null:id;render(true)},
+  accDrop:function(v){var pick=U.accPick;if(pick==null)return;var o=accOrderAll(),i=o.indexOf(pick);if(i<0){U.accPick=null;render(true);return}var dest=+v;var item=o.splice(i,1)[0];if(i<dest)dest--;dest=Math.max(0,Math.min(o.length,dest));o.splice(dest,0,item);S.accOrder=o.join(',');U.accPick=null;save();render(true)},
+  accreset:function(){S.accOrder='';U.accPick=null;save();render(true);toast('Account order reset')},
   showio:function(v){S.showInOut=(v==='1');save();render(true)},
   cfuture:function(v){S.countFuture=(v==='1');save();render(true);toast(S.countFuture?'Future-dated transactions now count in balances':'Balances now ignore future-dated transactions')},
   tiptoggle:function(v){S.tipOnLaunch=(v==='1');save();render(true)},
