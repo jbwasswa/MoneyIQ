@@ -272,6 +272,9 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .arow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;padding:10px 0;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
 .arow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arow-wrap{display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--line)}
+.arow-wrap .arow{min-width:0;flex:1}
+.arow-wrap:last-child{border-bottom:0}
 .setrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .setrow:last-child{border-bottom:0}
 .setrow p{margin:0;color:var(--muted);font-size:12.5px}
@@ -367,6 +370,8 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .fields label,.dlgc label{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:500;min-width:0}
 .fields input,.fields select,.dlgc input,.dlgc select{width:100%;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:0 10px;min-width:0}
 .wide{grid-column:1/-1}
+.xferswap{display:flex;justify-content:center;margin-top:-4px}
+.xferswap button{display:inline-flex;align-items:center;gap:6px}
 .quick{display:flex;gap:10px;margin:2px 0 8px;line-height:1.4}
 .amtbox .cur.full{font-size:14px;min-width:86px}
 .quick button{font-size:12px;color:var(--accent);font-weight:600}
@@ -1490,16 +1495,23 @@ function catOptions(sel,types){
 }
 function txViewHTML(){
   var f=U.f;
+  var scAcc=scopedAccId(),scoped=scAcc&&!U.filtersOpen;
   var pills=[['all','All'],['exp','Expense'],['inc','Income'],['xfer','Transfer']].map(function(p){return '<button class="pill'+(f.type===p[0]?' on':'')+'" data-a="ftype" data-v="'+p[0]+'">'+p[1]+'</button>'}).join('');
   var chips='';
   if(f.range)chips+=chipx('range',rangeLabel(f.range.from,f.range.to));
   var sa=fAccs(f),sc=fCats(f),sp=fProjs(f),sy=fPayees(f),su=fCurs(f);
-  if(sa.length+sc.length+sp.length+sy.length+su.length>0)chips+='<button class="pill x" data-a="clearMulti">Clear filters'+I.x+'</button>';
-  var accSel=msel('tx','accs','All accounts',S.accounts.map(function(a){return {id:a.id,name:a.name}}),sa);
-  var catSel=msel('tx','cats','All categories',catItems(),sc);
-  var projSel=msel('tx','projs','All projects',S.projects.map(function(x){return {id:x.id,name:x.name}}).concat([{id:'-',name:'No project'}]),sp);
-  var paySel=msel('tx','payees','All payees',payeeList().map(function(x){return {id:x,name:x}}).concat([{id:'-',name:'No payee'}]),sy);
-    return '<div class="wrap">'+sampleBanner()+'<div class="toolbar">'+pills+chips+'</div><div class="toolbar">'+accSel+catSel+projSel+paySel+'<input id="q" type="search" placeholder="Search notes, payees and categories" value="'+esc(f.q)+'" aria-label="Search"></div><div id="list" style="display:grid;gap:4px">'+listHTML()+'</div></div>';
+  var extra=sc.length+sp.length+sy.length+su.length+(scAcc?0:sa.length);
+  if(extra>0)chips+='<button class="pill x" data-a="clearMulti">Clear filters'+I.x+'</button>';
+  var scopeBar=scAcc?'<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:sliders-horizontal',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button></div>':'';
+  var toolbar2='';
+  if(!scoped){
+    var accSel=msel('tx','accs','All accounts',S.accounts.map(function(a){return {id:a.id,name:a.name}}),sa);
+    var catSel=msel('tx','cats','All categories',catItems(),sc);
+    var projSel=msel('tx','projs','All projects',S.projects.map(function(x){return {id:x.id,name:x.name}}).concat([{id:'-',name:'No project'}]),sp);
+    var paySel=msel('tx','payees','All payees',payeeList().map(function(x){return {id:x,name:x}}).concat([{id:'-',name:'No payee'}]),sy);
+    toolbar2='<div class="toolbar">'+accSel+catSel+projSel+paySel+'<input id="q" type="search" placeholder="Search notes, payees and categories" value="'+esc(f.q)+'" aria-label="Search"></div>';
+  }
+    return '<div class="wrap">'+sampleBanner()+'<div class="toolbar">'+pills+chips+'</div>'+scopeBar+toolbar2+'<div id="list" style="display:grid;gap:4px">'+listHTML()+'</div></div>';
 }
 function reportMultiFilter(label,key,items){
   var selected=U.r.f[key]||[],count=selected.length;
@@ -1518,6 +1530,7 @@ function mPayee(t,l){return !l.length||l.indexOf(t.payee?t.payee:'-')>-1}
 function mCur(t,l){return !l.length||l.indexOf(acur(t.acc))>-1}
 function mProj(t,l){return !l.length||l.indexOf(t.project?t.project:'-')>-1}
 function ledgerAcc(){var a=fAccs(U.f);return a.length===1?a[0]:''}
+function scopedAccId(){if(!U.scopeAcc)return '';var sa=fAccs(U.f);return (sa.length===1&&sa[0]===U.scopeAcc)?U.scopeAcc:''}
 function normF(f,scope){
   if(scope==='tx'){f.accs=fAccs(f).slice();f.acc='';f.projs=fProjs(f).slice();f.project=''}
   f.cats=fCats(f);f.cat='';f.sub='';f.payees=fPayees(f);f.payee='';f.curs=fCurs(f);f.cur='';
@@ -1670,7 +1683,7 @@ function loanCards(){
 }
 function accRowHTML(a){
   var b=bal(a),foreign=a.cur!==S.base;
-  return '<button class="arow" data-a="viewAcc" data-v="'+a.id+'"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+(foreign?' <small class="num" style="font-weight:400;color:var(--muted)">'+esc(a.cur)+'</small>':'')+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button>';
+  return '<div class="arow-wrap"><button class="arow" data-a="accFilter" data-v="'+a.id+'" style="border-bottom:0"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+(foreign?' <small class="num" style="font-weight:400;color:var(--muted)">'+esc(a.cur)+'</small>':'')+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button><button class="ib" data-a="viewAcc" data-v="'+a.id+'" aria-label="View '+esc(a.name)+' account details" style="flex:none">'+I.right+'</button></div>';
 }
 function accountsHTML(){
   var m=monthTx();
@@ -2030,8 +2043,9 @@ function fitSide(){
 function fwdOk(nr){var td=iso(new Date());return nr[1]<td||(U.view==='tx'&&dAdd(nr[1],1)<=dAdd(td,366))}
 function renderTop(){
   var v=U.view,subv=!!SUBV[v];
-  var back=subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(v==='settings'?'<button class="ib mob" data-a="tab" data-v="more" aria-label="Back to More">'+I.left+'</button>':'');
-  var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+TITLES[v]+'</h1>';
+  var scAcc=v==='tx'?scopedAccId():'';
+  var back=subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(v==='settings'?'<button class="ib mob" data-a="tab" data-v="more" aria-label="Back to More">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':''));
+  var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
   var rg=(v==='tx'&&U.f.range)?[U.f.range.from,U.f.range.to]:(v==='reports'&&U.r.period!=='month')?rptRange():null;
   if(MONTHLY[v]){
     var ep=effPer(),pv=(v==='overview'||v==='tx')?'<select id="per-sel" class="persel" aria-label="Show transactions by">'+PERS.map(function(x){return '<option value="'+x[0]+'"'+(U.per===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>':'';
@@ -2115,7 +2129,7 @@ function renderSheet(){
     (txnForeign?'<div class="fields"><label class="wide">Transaction exchange rate (configured: '+fmt(configuredFxRate(txnCur,ac),6)+') · 1 '+esc(txnCur)+' = '+esc(ac)+'<input id="f-txn-rate" type="number" step="any" inputmode="decimal" value="'+esc(E.txnRate||String(configuredFxRate(txnCur,ac)))+'"></label></div>':'')+
     (S.catPicker==='chips'?(('<div class="grp"><span class="dl">'+(xf?'Transfer category':'Category')+'</span><div class="cats">'+cats.map(function(c){return '<button class="chip'+(E.cat===c.id?' on':'')+'" data-a="sCat" data-v="'+c.id+'">'+dotHTML(c.color,c.icon,'sm')+esc(c.name)+'</button>'}).join('')+'</div></div>')+
     (subs.length?'<div class="grp"><span class="dl">Subcategory in '+esc(c0.name)+'</span><div class="cats">'+subs.map(function(s){return '<button class="chip'+(E.sub===s.id?' on':'')+'" data-a="sSub" data-v="'+s.id+'">'+dotHTML(c0.color,s.icon,'xs')+esc(s.name)+'</button>'}).join('')+'</div></div>':'')):catFieldHTML(E,c0,xf))+
-    '<div class="fields"><label>'+(xf?'From':'Account')+'<select id="f-acc">'+opts(E.acc)+'</select></label>'+(xf?'<label>To<select id="f-to">'+opts(E.to)+'</select></label>':'<label><span class="lh">'+(E.rule?'Next date':'Date')+'<span class="quick"><button data-a="dToday">Today</button><button data-a="dYest">Yesterday</button></span></span>'+dateInput('f-date',E.date,'Date')+'</label>')+
+    '<div class="fields"><label>'+(xf?'From':'Account')+'<select id="f-acc">'+opts(E.acc)+'</select></label>'+(xf?'<label>To<select id="f-to">'+opts(E.to)+'</select></label><div class="wide xferswap"><button type="button" class="lnk" data-a="swapXfer" aria-label="Swap from and to accounts">'+ico('swap',16)+'Swap accounts</button></div>':'<label><span class="lh">'+(E.rule?'Next date':'Date')+'<span class="quick"><button data-a="dToday">Today</button><button data-a="dYest">Yesterday</button></span></span>'+dateInput('f-date',E.date,'Date')+'</label>')+
     (foreign?'<label class="wide">Exchange rate: 1 '+esc(ac)+' in '+esc(S.base)+'<input id="f-rate" type="text" inputmode="decimal" value="'+esc(E.rate)+'"></label>':'')+
     (cross?'<label>Exchange rate: 1 '+esc(ac)+' = '+esc(acur(E.to))+'<input id="f-xrate" type="text" inputmode="decimal" value="'+esc(xrateText(E))+'"></label><label>Amount received in '+esc(acur(E.to))+'<input id="f-recv" type="text" inputmode="decimal" placeholder="Calculated from your rates" value="'+esc(E.recv==null?autoRecv(E):E.recv)+'"></label><p class="hint">Sent in '+esc(ac)+', received in '+esc(acur(E.to))+'. Change the rate or the received amount to match what your bank or provider used; the other updates to match.</p>':'')+
     (xf?'<label><span class="lh">'+(E.rule?'Next date':'Date')+'<span class="quick"><button data-a="dToday">Today</button><button data-a="dYest">Yesterday</button></span></span>'+dateInput('f-date',E.date,'Date')+'</label><label><span class="lh">Charge in '+esc(ac)+' (optional)</span><input id="f-fee" type="text" inputmode="decimal" placeholder="0" value="'+esc(commaNum(E.fee))+'"></label>':'')+
@@ -2585,7 +2599,8 @@ var A={
   setPer:function(v){if(!PERS.some(function(x){return x[0]===v}))return;var td=iso(new Date()),r=perOf(U.per),keep=r[0]<=td&&td<=r[1]?td:U.pd;U.per=v;goDate(keep>td?td:keep);U.f.range=null;render()},
   ftype:function(v){U.f.type=v;render(true)},
   loanFilter:function(v){var p=v.split('|'),ds=S.tx.filter(function(t){return t.acc===p[0]||t.to===p[0]}).map(function(t){return t.date}).sort(),today=iso(new Date());U.f={type:'all',acc:p[0],cat:'',sub:'',project:'',payee:p[1],cur:'',range:{from:ds[0]||today,to:(ds[ds.length-1]>today?ds[ds.length-1]:today)},accs:[],projs:[],q:''};U.view='tx';render()},
-  accFilter:function(v){U.f={type:'all',acc:v,cat:'',sub:'',project:'',payee:'',cur:'',range:null,accs:[],projs:[],q:''};U.view='tx';render()},
+  accFilter:function(v){U.f={type:'all',acc:v,cat:'',sub:'',project:'',payee:'',cur:'',range:null,accs:[],projs:[],q:''};U.scopeAcc=v;U.filtersOpen=false;U.view='tx';render()},
+  toggleFilters:function(){U.filtersOpen=!U.filtersOpen;render(true)},
   drill:function(v){
     var it=RPT[+v];if(!it)return;var rf=U.r.f,rg=rptRange();
     U.f={type:U.r.type==='flow'?'all':U.r.type,acc:'',accs:rf.accounts.slice(),cat:rf.cat,sub:rf.sub,project:'',projs:rf.projects.slice(),payee:rf.payee,cur:rf.cur,range:{from:rg[0],to:rg[1]},q:''};
@@ -2614,6 +2629,7 @@ var A={
   pickUsual:function(){U.pick.cat='__u';renderPickBody()},
   pickSel:function(v){if(U.lp){U.lp=false;return}var p=v.split('/');U.sheet.cat=p[0];U.sheet.sub=p[1]||'';U.pick=null;renderPick();renderSheet()},
   catstyle:function(v){S.catPicker=(v==='chips'?'chips':'list');save();render(true)},
+  swapXfer:function(){var E=U.sheet;if(!E||E.type!=='xfer')return;var oldAcc=E.acc,oldAccCur=acur(oldAcc);E.acc=E.to;E.to=oldAcc;var nc=acur(E.acc);if(!E.txnCur||E.txnCur===oldAccCur)E.txnCur=nc;E.txnRate=String(configuredFxRate(E.txnCur,nc));E.rate=(E.id&&E.origCur===nc)?String(E.origRate):String(cur(nc).rate);E.recv=null;E.xr=null;renderSheet()},
   dToday:function(){U.sheet.date=iso(new Date());setDateInput('f-date',U.sheet.date)},
   dYest:function(){var d=new Date();d.setDate(d.getDate()-1);U.sheet.date=iso(d);setDateInput('f-date',U.sheet.date)},
   k:function(v){key(v)},
