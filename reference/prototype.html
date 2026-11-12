@@ -312,10 +312,10 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .rcrow .t{min-width:0}.rcrow .t b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* tabs (phone) */
-.tabs{display:grid;grid-template-columns:1fr 1fr 74px 1fr 1fr;align-items:center;border-top:1px solid var(--line);background:var(--surface);padding-block:6px 8px}
-.tabs button.t{display:grid;justify-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);align-items:center;border-top:1px solid var(--line);background:var(--surface);padding-block:6px 8px}
+.tabs button.t{display:grid;justify-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--muted);padding:4px 0;min-width:0}
+.tabs button.t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .tabs button.t.on{color:var(--accent)}
-.addb{width:54px;height:54px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;margin:-22px auto 0;box-shadow:0 6px 18px rgba(11,122,99,.35);border:4px solid var(--surface)}
 
 /* sheet, dialogs */
 #sheet,#dlg,#pick{position:absolute;inset:0;z-index:20}#pick{z-index:21}#dlg{z-index:22}
@@ -379,6 +379,7 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .quick button{font-size:12px;color:var(--accent);font-weight:600}
 .hint{grid-column:1/-1;font-size:12.5px;color:var(--muted);margin:-2px 0 0}
 .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-block:10px 14px;border-top:1px solid var(--line)}
+#sheet.note-focus .keys{display:none}
 .keys button{height:48px;border-radius:14px;background:var(--bg);border:1px solid var(--line);font:600 20px var(--f-display)}
 .keys .op{background:var(--line)}
 .keys .go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:16px}
@@ -811,6 +812,7 @@ var I={
   plus16:svg('<path d="M12 5v14M5 12h14"/>',16),
   sliders:svg('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
   more:svg('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>'),
+  menu:svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
   left:svg('<path d="M15 5l-7 7 7 7"/>'),
   right:svg('<path d="M9 5l7 7-7 7"/>'),
   close:svg('<path d="M6 6l12 12M18 6L6 18"/>'),
@@ -1475,25 +1477,51 @@ function catOptions(sel,types){
     return '<option value="'+c.id+'"'+(sel===c.id?' selected':'')+'>'+esc(c.name)+'</option>'+(c.subs||[]).map(function(s){var v=c.id+'/'+s.id;return '<option value="'+v+'"'+(sel===v?' selected':'')+'>&nbsp;&nbsp;- '+esc(s.name)+'</option>'}).join('');
   }).join('')+'</optgroup>'}).join('');
 }
+var PIVOTS=[['expense','Expense'],['flow','Cash Flow'],['budget','Budget'],['account','Account']];
+function pivotExpenseHTML(){
+  var exp=baseTx().filter(function(t){return t.type==='exp'}),total=sum(exp,'exp');
+  if(!total)return '<div class="empty">No expenses in '+esc(perLabel())+'.</div>';
+  var items=breakdown(exp,'cat'),top=items.slice(0,8),rest=items.slice(8).reduce(function(s,i){return s+i.v},0);
+  if(rest>0)top.push({name:'Other',color:'#8A9692',icon:'tag',v:rest});
+  return '<section class="card"><div class="dn">'+donutSVG(top,total)+'<div class="lgd">'+top.map(function(it){return '<div class="lg">'+dotHTML(it.color,it.icon,'xs')+'<span>'+esc(it.name)+'</span><em class="num">'+fmt(it.v)+' · '+Math.round(it.v/total*100)+'%</em></div>'}).join('')+'</div></div></section>';
+}
+function pivotBudgetHTML(){
+  var br=budgetRows();
+  if(!br.length)return '<div class="empty">No budgets set yet.</div>';
+  return '<section class="card"><p class="sub" style="margin:0 0 8px">This month’s budgets, regardless of the period shown above.</p>'+br.map(function(x){var r=x.b?x.s/x.b:0;return '<button class="bmini" data-a="tab" data-v="budgets"><div class="h">'+dotHTML(x.c.color,x.c.icon,'xs')+'<b style="font-weight:600">'+esc(x.c.name)+'</b><span class="num" style="color:var(--muted)">'+fmt(x.s)+' / '+(x.b?fmt(x.b):'No budget')+'</span></div><div class="track '+(r>1?'over':r>.8?'warn':'')+'"><i style="width:'+Math.min(100,r*100).toFixed(1)+'%"></i></div></button>'}).join('')+'</section>';
+}
+function pivotAccountBalancesHTML(){
+  if(!S.accounts.length)return '';
+  var rows=S.accounts.map(function(a){var b=bal(a);return '<button class="arow" data-a="accFilter" data-v="'+a.id+'"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button>'}).join('');
+  return '<section class="card" style="padding:0 18px">'+rows+'</section>';
+}
 function txViewHTML(){
   var f=U.f;
   var scAcc=scopedAccId(),scoped=scAcc&&!U.filtersOpen;
-  var pills=[['all','All'],['exp','Expense'],['inc','Income'],['xfer','Transfer']].map(function(p){return '<button class="pill'+(f.type===p[0]?' on':'')+'" data-a="ftype" data-v="'+p[0]+'">'+p[1]+'</button>'}).join('');
-  var chips='';
-  if(f.range)chips+=chipx('range',rangeLabel(f.range.from,f.range.to));
-  var sa=fAccs(f),sc=fCats(f),sp=fProjs(f),sy=fPayees(f),su=fCurs(f);
-  var extra=sc.length+sp.length+sy.length+su.length+(scAcc?0:sa.length);
-  if(extra>0)chips+='<button class="pill x" data-a="clearMulti">Clear filters'+I.x+'</button>';
-  var scopeBar=scAcc?'<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:sliders-horizontal',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button></div>':'';
-  var toolbar2='';
-  if(!scoped){
-    var accSel=msel('tx','accs','All accounts',S.accounts.map(function(a){return {id:a.id,name:a.name}}),sa);
-    var catSel=msel('tx','cats','All categories',catItems(),sc);
-    var projSel=msel('tx','projs','All projects',S.projects.map(function(x){return {id:x.id,name:x.name}}).concat([{id:'-',name:'No project'}]),sp);
-    var paySel=msel('tx','payees','All payees',payeeList().map(function(x){return {id:x,name:x}}).concat([{id:'-',name:'No payee'}]),sy);
-    toolbar2='<div class="toolbar">'+accSel+catSel+projSel+paySel+'<input id="q" type="search" placeholder="Search notes, payees and categories" value="'+esc(f.q)+'" aria-label="Search"></div>';
+  var pivot=scAcc?'flow':(U.pivot||'flow');
+  var showToolbars=pivot==='flow'||pivot==='account';
+  var pivotRow=scAcc?'':'<div class="toolbar">'+PIVOTS.map(function(p){return '<button class="pill'+(pivot===p[0]?' on':'')+'" data-a="pivot" data-v="'+p[0]+'">'+p[1]+'</button>'}).join('')+'</div>';
+  var pills='',chips='',scopeBar='',toolbar2='';
+  if(showToolbars){
+    pills=[['all','All'],['exp','Expense'],['inc','Income'],['xfer','Transfer']].map(function(p){return '<button class="pill'+(f.type===p[0]?' on':'')+'" data-a="ftype" data-v="'+p[0]+'">'+p[1]+'</button>'}).join('');
+    if(f.range)chips+=chipx('range',rangeLabel(f.range.from,f.range.to));
+    var sa=fAccs(f),sc=fCats(f),sp=fProjs(f),sy=fPayees(f),su=fCurs(f);
+    var extra=sc.length+sp.length+sy.length+su.length+(scAcc?0:sa.length);
+    if(extra>0)chips+='<button class="pill x" data-a="clearMulti">Clear filters'+I.x+'</button>';
+    if(scAcc)scopeBar='<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:sliders-horizontal',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button></div>';
+    if(!scoped){
+      var accSel=msel('tx','accs','All accounts',S.accounts.map(function(a){return {id:a.id,name:a.name}}),sa);
+      var catSel=msel('tx','cats','All categories',catItems(),sc);
+      var projSel=msel('tx','projs','All projects',S.projects.map(function(x){return {id:x.id,name:x.name}}).concat([{id:'-',name:'No project'}]),sp);
+      var paySel=msel('tx','payees','All payees',payeeList().map(function(x){return {id:x,name:x}}).concat([{id:'-',name:'No payee'}]),sy);
+      toolbar2='<div class="toolbar">'+accSel+catSel+projSel+paySel+'<input id="q" type="search" placeholder="Search notes, payees and categories" value="'+esc(f.q)+'" aria-label="Search"></div>';
+    }
   }
-    return '<div class="wrap">'+sampleBanner()+'<div class="toolbar">'+pills+chips+'</div>'+scopeBar+toolbar2+'<div id="list" style="display:grid;gap:4px">'+listHTML()+'</div></div>';
+  var body;
+  if(pivot==='expense')body=pivotExpenseHTML();
+  else if(pivot==='budget')body=pivotBudgetHTML();
+  else body=(pivot==='account'?pivotAccountBalancesHTML():'')+'<div id="list" style="display:grid;gap:4px">'+listHTML()+'</div>';
+  return '<div class="wrap">'+sampleBanner()+pivotRow+(showToolbars?'<div class="toolbar">'+pills+chips+'</div>'+scopeBar+toolbar2:'')+body+'</div>';
 }
 function reportMultiFilter(label,key,items){
   var selected=U.r.f[key]||[],count=selected.length;
@@ -1961,12 +1989,9 @@ function tipsHTML(){
   var f=U.tipFilter||'all',list=TIPS.filter(function(t){return f==='all'||t[1]===f});
   return '<div class="wrap"><section class="card"><p class="sub" style="margin-top:0">All the tips Pocket Ledger can show you on launch &mdash; app features and money habits.</p><div class="seg" style="margin-bottom:4px"><button class="'+(f==='all'?'on':'')+'" data-a="tipsfilt" data-v="all">All</button><button class="'+(f==='app'?'on':'')+'" data-a="tipsfilt" data-v="app">App tips</button><button class="'+(f==='money'?'on':'')+'" data-a="tipsfilt" data-v="money">Money tips</button></div>'+(list.length?list.map(function(t){return '<div class="tiprow"><span class="tipcat '+t[1]+'">'+(t[1]==='app'?'App':'Money')+'</span><p>'+esc(t[0])+'</p></div>'}).join(''):'<div class="empty">No tips in this category.</div>')+'</section></div>';
 }
-function moreHTML(){
-  return '<div class="wrap"><div class="card" style="padding:0">'+[['accounts','Accounts',I.wallet],['budgets','Budgets',I.target],['goals','Goals',I.flag],['settings','Settings',I.sliders]].map(function(x){return '<button class="mrow" data-a="tab" data-v="'+x[0]+'">'+x[2]+'<span>'+x[1]+'</span>'+I.right+'</button>'}).join('')+'</div></div>';
-}
 var START_PAGES=[['overview','Overview'],['tx','Transactions'],['reports','Reports'],['budgets','Budget'],['accounts','Accounts']];
-var VIEWS={overview:overviewHTML,tx:txViewHTML,reports:reportsHTML,budgets:budgetsHTML,goals:goalsHTML,accounts:accountsHTML,categories:categoriesHTML,currencies:currenciesHTML,payees:payeesHTML,accounttypes:atypesHTML,goaltypes:gtypesHTML,payers:payersHTML,projects:projectsHTML,recurring:recurringHTML,data:dataHTML,tips:tipsHTML,settings:settingsHTML,more:moreHTML,appearance:appearanceHTML,balances:balancesSettingsHTML,general:generalSettingsHTML,linkedcats:linkedCatsViewHTML};
-var TITLES={goals:'Goals',accounttypes:'Account types',goaltypes:'Goal types',overview:'Overview',tx:'Transactions',reports:'Reports',budgets:'Budgets',accounts:'Accounts',categories:'Categories',currencies:'Currencies',payees:'Payees',payers:'Payers',projects:'Projects',recurring:'Recurring',data:'Backup & restore',tips:'Tips',settings:'Settings',more:'More',appearance:'Appearance',balances:'Balances',general:'General',linkedcats:'Linked categories & types'};
+var VIEWS={overview:overviewHTML,tx:txViewHTML,reports:reportsHTML,budgets:budgetsHTML,goals:goalsHTML,accounts:accountsHTML,categories:categoriesHTML,currencies:currenciesHTML,payees:payeesHTML,accounttypes:atypesHTML,goaltypes:gtypesHTML,payers:payersHTML,projects:projectsHTML,recurring:recurringHTML,data:dataHTML,tips:tipsHTML,settings:settingsHTML,appearance:appearanceHTML,balances:balancesSettingsHTML,general:generalSettingsHTML,linkedcats:linkedCatsViewHTML};
+var TITLES={goals:'Goals',accounttypes:'Account types',goaltypes:'Goal types',overview:'Overview',tx:'Transactions',reports:'Reports',budgets:'Budgets',accounts:'Accounts',categories:'Categories',currencies:'Currencies',payees:'Payees',payers:'Payers',projects:'Projects',recurring:'Recurring',data:'Backup & restore',tips:'Tips',settings:'Settings',appearance:'Appearance',balances:'Balances',general:'General',linkedcats:'Linked categories & types'};
 var MONTHLY={overview:1,tx:1,reports:1,budgets:1};
 var SUBV={accounttypes:1,goaltypes:1,categories:1,currencies:1,payees:1,payers:1,projects:1,recurring:1,data:1,tips:1,appearance:1,balances:1,general:1,linkedcats:1};
 
@@ -2026,7 +2051,7 @@ function fwdOk(nr){var td=iso(new Date());return nr[1]<td||(U.view==='tx'&&dAdd(
 function renderTop(){
   var v=U.view,subv=!!SUBV[v];
   var scAcc=v==='tx'?scopedAccId():'';
-  var back=subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(v==='settings'?'<button class="ib mob" data-a="tab" data-v="more" aria-label="Back to More">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':''));
+  var back=subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':(v==='settings'?'':'<button class="ib mob" data-a="tab" data-v="settings" aria-label="Settings menu">'+I.menu+'</button>'));
   var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
   var rg=(v==='tx'&&U.f.range)?[U.f.range.from,U.f.range.to]:(v==='reports'&&U.r.period!=='month')?rptRange():null;
   if(MONTHLY[v]){
@@ -2037,14 +2062,14 @@ function renderTop(){
       h+=pv+'<div class="month"><button class="ib" data-a="prev" aria-label="Previous '+nm+'">'+I.left+'</button><button class="pl" data-a="today" title="Go to the current '+nm+'" aria-label="'+esc(ep==='month'?ymLabel(U.ym):perLabel())+'. Go to the current '+nm+'">'+esc(ep==='month'?ymLabel(U.ym):perLabel())+'</button><button class="ib" data-a="next" aria-label="Next '+nm+'"'+(fwdOk(nr)?'':' disabled')+'>'+I.right+'</button></div>';
     }
   }
+  h+='<button class="ib mob" data-a="add" aria-label="New transaction">'+I.plus+'</button>';
   h+='<button class="hadd" data-a="add">'+I.plus16+'New transaction</button>';
   $('#top').innerHTML=h;
 }
 function renderTabs(){
-  var main={overview:1,tx:1,reports:1},t=[['overview','Overview',I.home],['tx','Activity',I.list],null,['reports','Reports',I.chart],['more','More',I.more]];
+  var t=[['overview','Overview',I.home],['accounts','Accounts',I.wallet],['tx','Activity',I.list],['reports','Reports',I.chart],['budgets','Budgets',I.target],['goals','Goals',I.flag]];
   $('#tabs').innerHTML=t.map(function(x){
-    if(!x)return '<button class="addb" data-a="add" aria-label="Add transaction">'+I.plus+'</button>';
-    var on=U.view===x[0]||(x[0]==='more'&&!main[U.view]);
+    var on=U.view===x[0];
     return '<button class="t'+(on?' on':'')+'" data-a="tab" data-v="'+x[0]+'">'+x[2]+'<span>'+x[1]+'</span></button>';
   }).join('');
 }
@@ -2104,7 +2129,7 @@ function renderSheet(){
   var c0=cat(E.cat),subs=c0?(c0.subs||[]):[];
   var opts=function(sel){return S.accounts.map(function(a){return '<option value="'+a.id+'"'+(a.id===sel?' selected':'')+'>'+esc(a.name)+' ('+esc(a.cur)+')</option>'}).join('')};
   var payees={};S.tx.forEach(function(t){if(t.payee)payees[t.payee]=1});
-  var keys=[['7'],['8'],['9'],['bk','op'],['4'],['5'],['6'],['/','op'],['1'],['2'],['3'],['*','op'],[dec(txnCur)>0?'.':'000'],['0'],['C','op'],['+','op'],['-','op'],['000']].concat(E.id||E.rule?[]:[['next','nx']]).concat([['save','go']]);
+  var keys=[['7'],['8'],['9'],['bk','op'],['4'],['5'],['6'],['/','op'],['1'],['2'],['3'],['*','op'],[dec(txnCur)>0?'.':'000'],['0'],['C','op'],['+','op'],['-','op'],['00']].concat(E.id||E.rule?[]:[['next','nx']]).concat([['save','go']]);
   el.innerHTML='<div class="scrim" data-a="closeSheet"></div><div class="panel" role="dialog" aria-label="'+(E.rule?'Edit repeating':(E.id?'Edit':'Add'))+' transaction">'+
     '<div class="ph gx"><div class="seg">'+[['exp','Expense'],['inc','Income'],['xfer','Transfer']].map(function(t){return '<button class="'+(E.type===t[0]?'on':'')+'" data-a="sType" data-v="'+t[0]+'">'+t[1]+'</button>'}).join('')+'</div><button class="ib" data-a="closeSheet" aria-label="Close">'+I.close+'</button></div>'+
     '<div class="pb gx"><div class="amtbox '+E.type+'"><div class="row1">'+('<select id="f-txn-cur" class="cur-select" aria-label="Transaction currency">'+S.currencies.map(function(c){return '<option value="'+c.code+'"'+(txnCur===c.code?' selected':'')+' >'+c.code+'</option>'}).join('')+'</select>')+'<input id="f-amt" type="text" inputmode="'+(narrow()?'none':'decimal')+'" autocomplete="off" placeholder="0" value="'+esc(formatEntryExpr(E.expr))+'" aria-label="Amount"></div><div id="amt-prev" class="num">'+esc(previewText(E))+'</div></div>'+
@@ -2274,10 +2299,10 @@ function key(v){
   else if(v==='+'||v==='-'||v==='*'||v==='/'){if(!e&&v!=='-'&&v!=='+')return;e=last?e.slice(0,-1)+v:e+v}
   else if(v==='.'){if(d===0)return;var seg=e.match(/[\d.]*$/)[0];if(seg.indexOf('.')>-1)return;e+=(seg===''?'0.':'.')}
   else{
-    if(v==='000'&&(!e||last))return;
+    if((v==='000'||v==='00')&&(!e||last))return;
     var m=e.match(/\d*\.?\d*$/)[0];
     if(m.indexOf('.')>-1&&m.split('.')[1].length>=d)return;
-    if(m==='0'){if(v==='0'||v==='000')return;e=e.slice(0,-1)}
+    if(m==='0'){if(v==='0'||v==='000'||v==='00')return;e=e.slice(0,-1)}
     if(m.replace('.','').length+v.length>12)return;
     if(e.length>28)return;
     e+=v;
@@ -2583,6 +2608,7 @@ var A={
   loanFilter:function(v){var p=v.split('|'),ds=S.tx.filter(function(t){return t.acc===p[0]||t.to===p[0]}).map(function(t){return t.date}).sort(),today=iso(new Date());U.f={type:'all',acc:p[0],cat:'',sub:'',project:'',payee:p[1],cur:'',range:{from:ds[0]||today,to:(ds[ds.length-1]>today?ds[ds.length-1]:today)},accs:[],projs:[],q:''};U.view='tx';render()},
   accFilter:function(v){U.f={type:'all',acc:v,cat:'',sub:'',project:'',payee:'',cur:'',range:null,accs:[],projs:[],q:''};U.scopeAcc=v;U.filtersOpen=false;U.view='tx';render()},
   toggleFilters:function(){U.filtersOpen=!U.filtersOpen;render(true)},
+  pivot:function(v){U.pivot=v;render(true)},
   drill:function(v){
     var it=RPT[+v];if(!it)return;var rf=U.r.f,rg=rptRange();
     U.f={type:U.r.type==='flow'?'all':U.r.type,acc:'',accs:rf.accounts.slice(),cat:rf.cat,sub:rf.sub,project:'',projs:rf.projects.slice(),payee:rf.payee,cur:rf.cur,range:{from:rg[0],to:rg[1]},q:''};
@@ -2883,6 +2909,13 @@ document.addEventListener('blur',function(e){
     updAmt();
   }
 },true);
+document.addEventListener('focusin',function(e){
+  var sh=document.getElementById('sheet');
+  if(!sh||sh.hidden||!sh.contains(e.target))return;
+  var t=e.target,tag=t.tagName;
+  if(tag!=='INPUT'&&tag!=='TEXTAREA'&&tag!=='SELECT')return;
+  sh.classList.toggle('note-focus',t.id!=='f-amt');
+});
 document.addEventListener('input',function(e){
   var t=e.target,E=U.sheet;
   if(t&&t.type==='date'&&t.id){var dt=$('#'+t.id+'-t');if(dt)dt.textContent=fmtDate(t.value)}
@@ -3034,7 +3067,7 @@ document.addEventListener('keydown',function(e){
   else if(e.key==='['&&MONTHLY[U.view]&&(U.view!=='reports'||U.r.period==='month'))A.prev();
   else if(e.key===']'&&MONTHLY[U.view]&&(U.view!=='reports'||U.r.period==='month'))A.next();
 });
-window.addEventListener('resize',function(){fitSide();if(U.view==='more'&&window.innerWidth>=900){U.view='overview';render()}});
+window.addEventListener('resize',function(){fitSide()});
 
 function catchUp(){
   curYm=iso(new Date()).slice(0,7);
