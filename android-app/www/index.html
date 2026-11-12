@@ -375,11 +375,15 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .amtbox .cur.full{font-size:14px;min-width:86px}
 .quick button{font-size:12px;color:var(--accent);font-weight:600}
 .hint{grid-column:1/-1;font-size:12.5px;color:var(--muted);margin:-2px 0 0}
-.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-block:10px 14px;border-top:1px solid var(--line)}
-#sheet.note-focus .keys{display:none}
+.kctrl{display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;padding-block:10px 0;border-top:1px solid var(--line)}
+.kctrl button{height:48px;border-radius:14px;border:1px solid var(--line);font:700 15px var(--f-display);background:var(--bg)}
+.kctrl .kac{background:color-mix(in srgb,var(--exp) 14%,var(--surface));color:var(--exp);border-color:var(--exp)}
+.kctrl .kdel{color:var(--muted)}
+.kctrl .kok{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:16px}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-block:10px 14px}
+#sheet.note-focus .kctrl,#sheet.note-focus .keys{display:none}
 .keys button{height:48px;border-radius:14px;background:var(--bg);border:1px solid var(--line);font:600 20px var(--f-display)}
 .keys .op{background:var(--line)}
-.keys .go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:16px;grid-column:span 2}
 .pf{display:grid;grid-template-columns:auto;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;padding-block:12px 16px;border-top:1px solid var(--line);align-items:center}
 @media(max-width:699px){.pf kbd{display:none}}
 .del{color:var(--exp);font-weight:600;height:40px}
@@ -419,7 +423,7 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 @media (min-width:900px){.toast{bottom:28px}}
 @media (min-width:700px){
   .panel{left:50%;right:auto;top:50%;bottom:auto;transform:translate(-50%,-50%);width:min(520px,94%);max-height:92%;border-radius:24px;animation:pop .18s ease-out;box-shadow:var(--shadow)}
-  .keys{display:none}
+  .keys{display:none}.kctrl{display:none}
 }
 @media (prefers-reduced-motion:reduce){.panel{animation:none}}
 .kpi.hero.bad{background:var(--exp);border-color:var(--exp);color:var(--exp-ink)}
@@ -2084,9 +2088,9 @@ function renderTop(){
   h+='<button class="hadd" data-a="add">'+I.plus16+'New transaction</button>';
   $('#top').innerHTML=h;
 }
+var TABS=[['overview','Overview',I.home],['accounts','Accounts',I.wallet],['tx','Activity',I.list],['reports','Reports',I.chart],['budgets','Budgets',I.target],['goals','Goals',I.flag]];
 function renderTabs(){
-  var t=[['overview','Overview',I.home],['accounts','Accounts',I.wallet],['tx','Activity',I.list],['reports','Reports',I.chart],['budgets','Budgets',I.target],['goals','Goals',I.flag]];
-  $('#tabs').innerHTML=t.map(function(x){
+  $('#tabs').innerHTML=TABS.map(function(x){
     var on=U.view===x[0];
     return '<button class="t'+(on?' on':'')+'" data-a="tab" data-v="'+x[0]+'">'+x[2]+'<span>'+x[1]+'</span></button>';
   }).join('');
@@ -2148,7 +2152,7 @@ function renderSheet(){
   var c0=cat(E.cat),subs=c0?(c0.subs||[]):[];
   var opts=function(sel){return S.accounts.map(function(a){return '<option value="'+a.id+'"'+(a.id===sel?' selected':'')+'>'+esc(a.name)+' ('+esc(a.cur)+')</option>'}).join('')};
   var payees={};S.tx.forEach(function(t){if(t.payee)payees[t.payee]=1});
-  var keys=[['7'],['8'],['9'],['bk','op'],['4'],['5'],['6'],['/','op'],['1'],['2'],['3'],['*','op'],[dec(txnCur)>0?'.':'000'],['0'],['C','op'],['+','op'],['-','op'],['00'],['ok','go']];
+  var keys=[['7'],['8'],['9'],['/','op'],['4'],['5'],['6'],['*','op'],['1'],['2'],['3'],['-','op'],[dec(txnCur)>0?'.':'000'],['0'],['00'],['+','op']];
   el.innerHTML='<div class="scrim" data-a="closeSheet"></div><div class="panel" role="dialog" aria-label="'+(E.rule?'Edit repeating':(E.id?'Edit':'Add'))+' transaction">'+
     '<div class="ph gx"><div class="seg">'+[['exp','Expense'],['inc','Income'],['xfer','Transfer']].map(function(t){return '<button class="'+(E.type===t[0]?'on':'')+'" data-a="sType" data-v="'+t[0]+'">'+t[1]+'</button>'}).join('')+'</div><button class="ib" data-a="closeSheet" aria-label="Close">'+I.close+'</button></div>'+
     '<div class="pb gx"><div class="amtbox '+E.type+'"><div class="row1">'+('<select id="f-txn-cur" class="cur-select" aria-label="Transaction currency">'+S.currencies.map(function(c){return '<option value="'+c.code+'"'+(txnCur===c.code?' selected':'')+' >'+c.code+'</option>'}).join('')+'</select>')+'<input id="f-amt" type="text" inputmode="'+(narrow()?'none':'decimal')+'" autocomplete="off" placeholder="0" value="'+esc(formatEntryExpr(E.expr))+'" aria-label="Amount"></div><div id="amt-prev" class="num">'+esc(previewText(E))+'</div></div>'+
@@ -2164,7 +2168,8 @@ function renderSheet(){
     (E.rule?'<p class="hint" style="margin:0 0 6px">Changes apply to future entries only. Entries already made stay as they are.</p>':'')+(E.recId?'<p class="hint" style="margin:0 0 6px">This entry matches a repeating entry in Settings. Changing the repeat updates future entries only.</p>':'')+repeatHTML(E)+'</div>'+
     '</div>'+
     '<div class="pf gx">'+(E.id?'<span class="xl"><button data-a="dupTx" aria-label="Copy" title="Copy as a new entry">'+ico('lu:copy',16)+'<span class="t">Copy</span></button><button class="del" data-a="delTx" aria-label="Delete" title="Delete">'+ico('lu:trash',16)+'<span class="t">Delete</span></button></span>':'<span></span>')+'<button class="btn line" data-a="closeSheet">Cancel</button>'+(E.id||E.rule?'':'<button class="btn line" data-a="addNext" title="Save this entry and start another with the same category (Shift+Enter)">Add Next</button>')+'<button class="btn" data-a="saveTx">Save<kbd>↵</kbd></button></div>'+
-    '<div class="keys gx">'+keys.map(function(k){var v=k[0],c=k[1]||'',l=v==='bk'?I.back:v==='-'?'−':v==='*'?'×':v==='/'?'÷':v==='ok'?'OK':v;return '<button class="'+c+'" data-a="'+(v==='ok'?'kpDone':'k')+'" data-v="'+v+'" '+(v==='bk'?'aria-label="Backspace"':v==='C'?'aria-label="Clear"':v==='ok'?'aria-label="Hide keypad"':'')+'>'+l+'</button>'}).join('')+'</div></div>';
+    '<div class="kctrl gx"><button class="kac" data-a="k" data-v="C" aria-label="Clear">AC</button><button class="kdel" data-a="k" data-v="bk" aria-label="Backspace">DEL</button><button class="kok" data-a="kpDone" aria-label="Hide keypad">OK</button></div>'+
+    '<div class="keys gx">'+keys.map(function(k){var v=k[0],c=k[1]||'',l=v==='-'?'−':v==='*'?'×':v==='/'?'÷':v;return '<button class="'+c+'" data-a="k" data-v="'+v+'">'+l+'</button>'}).join('')+'</div></div>';
   el.hidden=false;
 }
 function catFieldHTML(E,c0,xf){
@@ -3061,6 +3066,30 @@ document.addEventListener('change',function(e){
   });
   ['pointerup','pointercancel','pointerleave','pointermove'].forEach(function(n){document.addEventListener(n,function(e){if(n==='pointermove'&&e.buttons===0)return;clearTimeout(timer)},true)});
   document.addEventListener('contextmenu',function(e){var el=e.target.closest&&e.target.closest('[data-lp]');if(el){e.preventDefault();clearTimeout(timer);fire(el)}});
+})();
+(function(){
+  var sx=0,sy=0,tracking=false;
+  function tabsVisible(){var tb=$('#tabs');return tb&&getComputedStyle(tb).display!=='none'};
+  function onStart(e){
+    if(U.sheet||U.pick||U.dlg)return;
+    if(!tabsVisible())return;
+    if(TABS.map(function(x){return x[0]}).indexOf(U.view)<0)return;
+    if(U.view==='tx'&&scopedAccId())return;
+    var t=e.touches?e.touches[0]:e;sx=t.clientX;sy=t.clientY;tracking=true;
+  }
+  function onEnd(e){
+    if(!tracking)return;tracking=false;
+    var t=e.changedTouches?e.changedTouches[0]:e,dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    var order=TABS.map(function(x){return x[0]}),i=order.indexOf(U.view);
+    if(i<0)return;
+    var ni=dx<0?i+1:i-1;
+    if(ni<0||ni>=order.length)return;
+    U.view=order[ni];render();
+  }
+  var sc=$('#screen');
+  sc.addEventListener('touchstart',onStart,{passive:true});
+  sc.addEventListener('touchend',onEnd,{passive:true});
 })();
 document.addEventListener('keydown',function(e){
   if(e.metaKey||e.ctrlKey||e.altKey)return;
