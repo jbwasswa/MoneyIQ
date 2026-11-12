@@ -659,6 +659,11 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .tapl .ovr .badge{font-size:10px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:2px 7px;border-radius:999px;margin-left:8px;letter-spacing:.02em}
 .tapl .endzone{border:1.5px dashed var(--line);border-radius:10px;padding:9px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer}
 .tapl .endzone:hover{border-color:var(--accent);color:var(--accent)}
+.nudgebar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--line);border-radius:12px;padding:6px 6px 6px 12px;margin:8px 0 10px}
+.nudgebar .nb-name{font-weight:600;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nudgebar .nb-ctl{display:flex;gap:2px;flex:none}
+.nudgebar .ib{color:var(--ink)}
+.nudgebar .ib:hover:not([disabled]){background:var(--surface)}
 
 .g.ovg{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(min-width:1300px){.g.ovg.c3{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1442,16 +1447,13 @@ function ovHidden(){return String(S.ovHide||'').split(',').filter(Boolean)}
 function ovSections(){var h=ovHidden();return ovOrderAll().filter(function(k){return h.indexOf(k)<0})}
 function ovName(k){return OV_SECS.filter(function(x){return x[0]===k})[0][1]}
 function ovLayoutHTML(){
-  var ord=ovOrderAll(),hid=ovHidden(),pick=U.ovPick;
-  var rows='';
-  ord.forEach(function(k,i){
-    if(pick!=null)rows+='<div class="endzone" data-a="ovDrop" data-v="'+i+'">Place here</div>';
+  var ord=ovOrderAll(),hid=ovHidden(),pick=U.ovPick,pi=pick!=null?ord.indexOf(pick):-1;
+  var rows=ord.map(function(k,i){
     var off=hid.indexOf(k)>=0,picked=(pick===k);
-    rows+='<div class="ovr'+(off?' off':'')+(picked?' picked':'')+'" data-a="ovPick" data-v="'+k+'"><span class="n"><em class="num">'+(i+1)+'</em>'+esc(ovName(k))+(picked?'<span class="badge">Picked</span>':'')+'</span><span class="ctl"><button class="vis" data-a="ovtoggle" data-v="'+k+'" aria-pressed="'+(!off)+'" aria-label="'+(off?'Show ':'Hide ')+esc(ovName(k))+'">'+ico(off?'lu:eye-off':'lu:eye',16)+'<span>'+(off?'Hidden':'Shown')+'</span></button></span></div>';
-  });
-  if(pick!=null)rows+='<div class="endzone" data-a="ovDrop" data-v="'+ord.length+'">Place here</div>';
-  var hint=pick!=null?'Tap where &ldquo;'+esc(ovName(pick))+'&rdquo; should go.':'Tap a section to pick it up, then tap where it should go.';
-  return '<section class="card"><div class="chd"><h2>Overview layout</h2><button class="lnk" data-a="ovreset">Reset</button></div><div class="setrow" style="padding-top:4px"><div><b>Columns</b><p>How many sections sit side by side. Narrow windows show fewer automatically.</p></div><div class="seg"><button class="'+(ovCols()===2?'on':'')+'" data-a="ovcols" data-v="2">2</button><button class="'+(ovCols()===3?'on':'')+'" data-a="ovcols" data-v="3">3</button></div></div><p class="sub" style="margin:8px 0 8px">'+hint+'</p><div class="tapl">'+rows+'</div></section>';
+    return '<div class="ovr'+(off?' off':'')+(picked?' picked':'')+'" data-a="ovPick" data-v="'+k+'"><span class="n"><em class="num">'+(i+1)+'</em>'+esc(ovName(k))+(picked?'<span class="badge">Selected</span>':'')+'</span><span class="ctl"><button class="vis" data-a="ovtoggle" data-v="'+k+'" aria-pressed="'+(!off)+'" aria-label="'+(off?'Show ':'Hide ')+esc(ovName(k))+'">'+ico(off?'lu:eye-off':'lu:eye',16)+'<span>'+(off?'Hidden':'Shown')+'</span></button></span></div>';
+  }).join('');
+  var topBar=pick!=null?('<div class="nudgebar"><span class="nb-name">'+esc(ovName(pick))+'</span><span class="nb-ctl"><button class="ib" data-a="ovNudge" data-v="top" aria-label="Move to top"'+(pi<=0?' disabled':'')+'>'+ico('lu:arrow-up-to-line',15)+'</button><button class="ib" data-a="ovNudge" data-v="up" aria-label="Move up"'+(pi<=0?' disabled':'')+'>'+ico('lu:chevron-up',15)+'</button><button class="ib" data-a="ovNudge" data-v="down" aria-label="Move down"'+(pi<0||pi>=ord.length-1?' disabled':'')+'>'+ico('lu:chevron-down',15)+'</button><button class="ib" data-a="ovNudge" data-v="bottom" aria-label="Move to bottom"'+(pi<0||pi>=ord.length-1?' disabled':'')+'>'+ico('lu:arrow-down-to-line',15)+'</button></span></div>'):'<p class="sub" style="margin:8px 0 8px">Tap a section to select it, then move it with the arrows.</p>';
+  return '<section class="card"><div class="chd"><h2>Overview layout</h2><button class="lnk" data-a="ovreset">Reset</button></div><div class="setrow" style="padding-top:4px"><div><b>Columns</b><p>How many sections sit side by side. Narrow windows show fewer automatically.</p></div><div class="seg"><button class="'+(ovCols()===2?'on':'')+'" data-a="ovcols" data-v="2">2</button><button class="'+(ovCols()===3?'on':'')+'" data-a="ovcols" data-v="3">3</button></div></div>'+topBar+'<div class="tapl">'+rows+'</div></section>';
 }
 function sbLayoutHTML(){
   var ord=sbOrderAll(),hid=sbHidden();
@@ -1721,17 +1723,15 @@ function orderedAccounts(){
   return ord.map(function(id){return byId[id]}).filter(Boolean);
 }
 function accOrderHTML(){
-  var ord=accOrderAll(),byId={},pick=U.accPick;S.accounts.forEach(function(a){byId[a.id]=a});
-  var rows='';
-  ord.forEach(function(id,i){
-    var a=byId[id];if(!a)return;
-    if(pick!=null)rows+='<div class="endzone" data-a="accDrop" data-v="'+i+'">Place here</div>';
+  var ord=accOrderAll(),byId={},pick=U.accPick,pi=pick!=null?ord.indexOf(pick):-1;S.accounts.forEach(function(a){byId[a.id]=a});
+  var rows=ord.map(function(id,i){
+    var a=byId[id];if(!a)return '';
     var picked=(pick===id);
-    rows+='<div class="ovr'+(picked?' picked':'')+'" data-a="accPick" data-v="'+id+'"><span class="n"><em class="num">'+(i+1)+'</em>'+atypeIcon(a.kind,16)+' '+esc(a.name)+(picked?'<span class="badge">Picked</span>':'')+'</span></div>';
-  });
-  if(pick!=null)rows+='<div class="endzone" data-a="accDrop" data-v="'+ord.length+'">Place here</div>';
-  var hint=pick!=null?'Tap where it should go.':'Tap an account to pick it up, then tap where it should go.';
-  return '<div class="wrap"><section class="card"><div class="chd"><h2>Reorder accounts</h2><button class="lnk" data-a="accreset">Reset</button></div><p class="sub" style="margin:8px 0 8px">'+hint+'</p><div class="tapl">'+rows+'</div></section></div>';
+    return '<div class="ovr'+(picked?' picked':'')+'" data-a="accPick" data-v="'+id+'"><span class="n"><em class="num">'+(i+1)+'</em>'+atypeIcon(a.kind,16)+' '+esc(a.name)+(picked?'<span class="badge">Selected</span>':'')+'</span></div>';
+  }).join('');
+  var pickedAcc=pick!=null?byId[pick]:null;
+  var topBar=pickedAcc?('<div class="nudgebar"><span class="nb-name">'+esc(pickedAcc.name)+'</span><span class="nb-ctl"><button class="ib" data-a="accNudge" data-v="top" aria-label="Move to top"'+(pi<=0?' disabled':'')+'>'+ico('lu:arrow-up-to-line',15)+'</button><button class="ib" data-a="accNudge" data-v="up" aria-label="Move up"'+(pi<=0?' disabled':'')+'>'+ico('lu:chevron-up',15)+'</button><button class="ib" data-a="accNudge" data-v="down" aria-label="Move down"'+(pi<0||pi>=ord.length-1?' disabled':'')+'>'+ico('lu:chevron-down',15)+'</button><button class="ib" data-a="accNudge" data-v="bottom" aria-label="Move to bottom"'+(pi<0||pi>=ord.length-1?' disabled':'')+'>'+ico('lu:arrow-down-to-line',15)+'</button></span></div>'):'<p class="sub" style="margin:8px 0 8px">Tap an account to select it, then move it with the arrows.</p>';
+  return '<div class="wrap"><section class="card"><div class="chd"><h2>Reorder accounts</h2><button class="lnk" data-a="accreset">Reset</button></div>'+topBar+'<div class="tapl">'+rows+'</div></section></div>';
 }
 function accountsHTML(){
   var m=monthTx();
@@ -2900,7 +2900,7 @@ var A={
   keepEditing:function(){var u=document.querySelector('.unsaved');if(u)u.remove()},
   discardSheet:function(){U.sheet=null;U.sheetSnap=null;renderSheet()},
   ovPick:function(k){U.ovPick=(U.ovPick===k)?null:k;render(true)},
-  ovDrop:function(v){var pick=U.ovPick;if(pick==null)return;var o=ovOrderAll(),i=o.indexOf(pick);if(i<0){U.ovPick=null;render(true);return}var dest=+v;var item=o.splice(i,1)[0];if(i<dest)dest--;dest=Math.max(0,Math.min(o.length,dest));o.splice(dest,0,item);S.ovOrder=o.join(',');U.ovPick=null;save();render(true)},
+  ovNudge:function(op){var pick=U.ovPick;if(pick==null)return;var o=ovOrderAll(),i=o.indexOf(pick);if(i<0){U.ovPick=null;render(true);return}var item=o.splice(i,1)[0],dest;if(op==='top')dest=0;else if(op==='bottom')dest=o.length;else if(op==='up')dest=Math.max(0,i-1);else dest=Math.min(o.length,i+1);o.splice(dest,0,item);S.ovOrder=o.join(',');save();render(true)},
   ovtoggle:function(k){var h=ovHidden(),i=h.indexOf(k);if(i>=0)h.splice(i,1);else{if(ovSections().length<=1)return toast('Keep at least one section on Overview');h.push(k)}S.ovHide=h.join(',');save();render(true)},
   sbmove:function(v){var q=v.split('|'),o=sbOrderAll(),i=o.indexOf(q[0]),j=i+(+q[1]);if(i<0||j<0||j>=o.length)return;var t=o[i];o[i]=o[j];o[j]=t;S.sbOrder=o.join(',');save();render(true)},
   sbtoggle:function(k){var h=sbHidden(),i=h.indexOf(k);if(i>=0)h.splice(i,1);else h.push(k);S.sbHide=h.join(',');save();render(true)},
@@ -2908,7 +2908,7 @@ var A={
   ovcols:function(v){S.ovCols=(v==='3'?3:2);save();render(true)},
   ovreset:function(){S.ovOrder='';S.ovHide='';S.ovCols=2;U.ovPick=null;save();render(true);toast('Overview layout reset')},
   accPick:function(id){U.accPick=(U.accPick===id)?null:id;render(true)},
-  accDrop:function(v){var pick=U.accPick;if(pick==null)return;var o=accOrderAll(),i=o.indexOf(pick);if(i<0){U.accPick=null;render(true);return}var dest=+v;var item=o.splice(i,1)[0];if(i<dest)dest--;dest=Math.max(0,Math.min(o.length,dest));o.splice(dest,0,item);S.accOrder=o.join(',');U.accPick=null;save();render(true)},
+  accNudge:function(op){var pick=U.accPick;if(pick==null)return;var o=accOrderAll(),i=o.indexOf(pick);if(i<0){U.accPick=null;render(true);return}var item=o.splice(i,1)[0],dest;if(op==='top')dest=0;else if(op==='bottom')dest=o.length;else if(op==='up')dest=Math.max(0,i-1);else dest=Math.min(o.length,i+1);o.splice(dest,0,item);S.accOrder=o.join(',');save();render(true)},
   accreset:function(){S.accOrder='';U.accPick=null;save();render(true);toast('Account order reset')},
   showio:function(v){S.showInOut=(v==='1');save();render(true)},
   cfuture:function(v){S.countFuture=(v==='1');save();render(true);toast(S.countFuture?'Future-dated transactions now count in balances':'Balances now ignore future-dated transactions')},
