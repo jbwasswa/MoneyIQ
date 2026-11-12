@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Native theme colors in dark mode. Match the dark palette of the app's own
+         CSS theme (prototype.html :root[data-theme="dark"], teal palette). -->
+    <color name="colorPrimary">#3CCBA4</color>
+    <color name="colorPrimaryDark">#08100E</color>
+    <color name="colorAccent">#3CCBA4</color>
+</resources>

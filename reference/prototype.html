@@ -344,7 +344,6 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 @media(max-width:700px){.pf .xl .t{display:none}.pf .xl button{padding:0 9px}}
 .catfield{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:6px 12px 6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--bg);text-align:left}
 .catfield .cf .cl{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.catfield .cf .cl b{font-weight:600}.catfield .cf .need{color:var(--muted);font-weight:500}
-.keys .nx{background:var(--bg);color:var(--accent);border-color:var(--accent);font-size:13px}
 .catfield .cf{display:grid;min-width:0;flex:1}.catfield .cf b{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.catfield .cf small{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .catfield:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
 .pkp{position:absolute;inset:0;background:var(--surface);display:flex;flex-direction:column;animation:up .2s ease-out}
@@ -382,8 +381,9 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 #sheet.note-focus .keys{display:none}
 .keys button{height:48px;border-radius:14px;background:var(--bg);border:1px solid var(--line);font:600 20px var(--f-display)}
 .keys .op{background:var(--line)}
-.keys .go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:16px}
-.pf{display:none;grid-template-columns:auto;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;padding-block:12px 16px;border-top:1px solid var(--line);align-items:center}
+.keys .go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:16px;grid-column:span 2}
+.pf{display:grid;grid-template-columns:auto;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;padding-block:12px 16px;border-top:1px solid var(--line);align-items:center}
+@media(max-width:699px){.pf kbd{display:none}}
 .del{color:var(--exp);font-weight:600;height:40px}
 .xtra{display:flex;gap:16px;justify-content:center}
 .xtra button{font-weight:600;color:var(--accent)}
@@ -421,7 +421,7 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 @media (min-width:900px){.toast{bottom:28px}}
 @media (min-width:700px){
   .panel{left:50%;right:auto;top:50%;bottom:auto;transform:translate(-50%,-50%);width:min(520px,94%);max-height:92%;border-radius:24px;animation:pop .18s ease-out;box-shadow:var(--shadow)}
-  .keys{display:none}.pf{display:grid}
+  .keys{display:none}
 }
 @media (prefers-reduced-motion:reduce){.panel{animation:none}}
 .kpi.hero.bad{background:var(--exp);border-color:var(--exp);color:var(--exp-ink)}
@@ -2090,6 +2090,7 @@ function fillRepeat(E,r){
   if(r.end){E.rend='date';E.rdate=r.end}else if(r.cnt>0){E.rend='count';E.rcnt=String(r.cnt)}else E.rend='';
 }
 function openSheet(t){
+  var exSh0=$('#sheet');if(exSh0)exSh0.classList.remove('note-focus');
   if(t){var ac=acur(t.acc),tc=t.txnCur||ac;U.sheet={id:t.id,type:t.type,expr:String(t.txnAmount!=null?t.txnAmount:t.amount),txnCur:tc,txnRate:String(t.txnRate||configuredFxRate(tc,ac)),cat:t.cat||(t.type==='xfer'?(firstCat('xfer')||{}).id:''),sub:t.sub||'',acc:t.acc,to:t.to||otherAcc(t.acc),date:t.date,note:t.note||'',payee:t.payee||'',project:t.project||'',rate:String(t.rate||1),origCur:ac,origRate:t.rate||1,recv:(t.type==='xfer'&&t.amountTo!=null&&acur(t.to)!==ac)?String(t.amountTo):null,repeat:'',fee:(function(){var f=t.type==='xfer'?feeRow(t.id):null;return f?String(f.amount):''})()}}
   if(t){var mr=recFor(t);if(mr){U.sheet.recId=mr.id;fillRepeat(U.sheet,mr)}}
   else{var a=S.lastAcc&&acct(S.lastAcc)?S.lastAcc:S.accounts[0].id;
@@ -2129,7 +2130,7 @@ function renderSheet(){
   var c0=cat(E.cat),subs=c0?(c0.subs||[]):[];
   var opts=function(sel){return S.accounts.map(function(a){return '<option value="'+a.id+'"'+(a.id===sel?' selected':'')+'>'+esc(a.name)+' ('+esc(a.cur)+')</option>'}).join('')};
   var payees={};S.tx.forEach(function(t){if(t.payee)payees[t.payee]=1});
-  var keys=[['7'],['8'],['9'],['bk','op'],['4'],['5'],['6'],['/','op'],['1'],['2'],['3'],['*','op'],[dec(txnCur)>0?'.':'000'],['0'],['C','op'],['+','op'],['-','op'],['00']].concat(E.id||E.rule?[]:[['next','nx']]).concat([['save','go']]);
+  var keys=[['7'],['8'],['9'],['bk','op'],['4'],['5'],['6'],['/','op'],['1'],['2'],['3'],['*','op'],[dec(txnCur)>0?'.':'000'],['0'],['C','op'],['+','op'],['-','op'],['00'],['ok','go']];
   el.innerHTML='<div class="scrim" data-a="closeSheet"></div><div class="panel" role="dialog" aria-label="'+(E.rule?'Edit repeating':(E.id?'Edit':'Add'))+' transaction">'+
     '<div class="ph gx"><div class="seg">'+[['exp','Expense'],['inc','Income'],['xfer','Transfer']].map(function(t){return '<button class="'+(E.type===t[0]?'on':'')+'" data-a="sType" data-v="'+t[0]+'">'+t[1]+'</button>'}).join('')+'</div><button class="ib" data-a="closeSheet" aria-label="Close">'+I.close+'</button></div>'+
     '<div class="pb gx"><div class="amtbox '+E.type+'"><div class="row1">'+('<select id="f-txn-cur" class="cur-select" aria-label="Transaction currency">'+S.currencies.map(function(c){return '<option value="'+c.code+'"'+(txnCur===c.code?' selected':'')+' >'+c.code+'</option>'}).join('')+'</select>')+'<input id="f-amt" type="text" inputmode="'+(narrow()?'none':'decimal')+'" autocomplete="off" placeholder="0" value="'+esc(formatEntryExpr(E.expr))+'" aria-label="Amount"></div><div id="amt-prev" class="num">'+esc(previewText(E))+'</div></div>'+
@@ -2145,7 +2146,7 @@ function renderSheet(){
     (E.rule?'<p class="hint" style="margin:0 0 6px">Changes apply to future entries only. Entries already made stay as they are.</p>':'')+(E.recId?'<p class="hint" style="margin:0 0 6px">This entry matches a repeating entry in Settings. Changing the repeat updates future entries only.</p>':'')+repeatHTML(E)+'</div>'+
     '</div>'+
     '<div class="pf gx">'+(E.id?'<span class="xl"><button data-a="dupTx" aria-label="Copy" title="Copy as a new entry">'+ico('lu:copy',16)+'<span class="t">Copy</span></button><button class="del" data-a="delTx" aria-label="Delete" title="Delete">'+ico('lu:trash',16)+'<span class="t">Delete</span></button></span>':'<span></span>')+'<button class="btn line" data-a="closeSheet">Cancel</button>'+(E.id||E.rule?'':'<button class="btn line" data-a="addNext" title="Save this entry and start another with the same category (Shift+Enter)">Add Next</button>')+'<button class="btn" data-a="saveTx">Save<kbd>↵</kbd></button></div>'+
-    '<div class="keys gx">'+keys.map(function(k){var v=k[0],c=k[1]||'',l=v==='bk'?I.back:v==='-'?'−':v==='*'?'×':v==='/'?'÷':v==='save'?'Save':v==='next'?'Add Next':v;return '<button class="'+c+'" data-a="'+(v==='save'?'saveTx':v==='next'?'addNext':'k')+'" data-v="'+v+'" '+(v==='bk'?'aria-label="Backspace"':v==='C'?'aria-label="Clear"':'')+'>'+l+'</button>'}).join('')+'</div></div>';
+    '<div class="keys gx">'+keys.map(function(k){var v=k[0],c=k[1]||'',l=v==='bk'?I.back:v==='-'?'−':v==='*'?'×':v==='/'?'÷':v==='ok'?'OK':v;return '<button class="'+c+'" data-a="'+(v==='ok'?'kpDone':'k')+'" data-v="'+v+'" '+(v==='bk'?'aria-label="Backspace"':v==='C'?'aria-label="Clear"':v==='ok'?'aria-label="Hide keypad"':'')+'>'+l+'</button>'}).join('')+'</div></div>';
   el.hidden=false;
 }
 function catFieldHTML(E,c0,xf){
@@ -2641,6 +2642,7 @@ var A={
   dToday:function(){U.sheet.date=iso(new Date());setDateInput('f-date',U.sheet.date)},
   dYest:function(){var d=new Date();d.setDate(d.getDate()-1);U.sheet.date=iso(d);setDateInput('f-date',U.sheet.date)},
   k:function(v){key(v)},
+  kpDone:function(){var sh=$('#sheet');if(sh)sh.classList.add('note-focus')},
   saveTx:saveTx,
   dupTx:function(){var E=U.sheet;E.id=0;E.origCur=null;E.rate=String(cur(acur(E.acc)).rate);renderSheet();U.sheetSnap=JSON.stringify(U.sheet);toast('Copy opened. Nothing is saved until you press Save.')},
   delTx:function(){
