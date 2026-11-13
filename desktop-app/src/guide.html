@@ -45,7 +45,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 </style></head><body><div class="layout"><nav class="side" id="side" aria-label="Contents"><b>Contents</b></nav><div class="wrap">
 
 <h1>Pocket Ledger</h1>
-<p class="sub">User guide &middot; Version 0.6.35 (MVP)</p>
+<p class="sub">User guide &middot; Version 0.6.40 (MVP)</p>
 <p>Pocket Ledger helps you see where your money goes and where it is going. You record what you earn and spend, keep track of every account you own (cash, bank, mobile money, loans), set monthly budgets, and follow goals such as an emergency fund or a debt you want to clear. Everything is stored on your own computer.</p>
 
 <div class="tip"><b>Why Pocket Ledger exists</b>Pocket Ledger is built around financial discipline &mdash; because that's what it takes to achieve financial freedom. It helps you know where your money goes, build better spending and saving habits, and work deliberately toward the goals that matter to you, whether that's clearing a debt, building an emergency fund, or saving for something specific. You don't need a goal to benefit from the app; tracking your money well is valuable on its own. But when you do set one, Pocket Ledger keeps it visible and keeps you accountable, because the point isn't just to record your money &mdash; it's to help you reach financial freedom.</div>
@@ -146,7 +146,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 </ul>
 <p>To stop a repeat, open one of its entries and choose <b>Does not repeat</b>. Entries already made are kept. Entries that match a repeating entry show its settings, and changes apply to future entries only.</p>
 <p>All your repeating entries are listed under <b>Settings &rarr; Recurring transactions</b>. Click a row (or <b>Edit</b>) to change how often, the next date, the end, the amount, category, account or note. <b>Delete</b> asks you to confirm, tells you which entries will no longer be added, and offers Undo. Entries already made stay.</p>
-<p>Repeating entries are added only when their date arrives. To see what is coming, open <b>Transactions</b> and use the forward arrow (up to a year ahead). Upcoming entries show greyed with an <i>Upcoming</i> tag. They are a preview: they do not count in totals, balances or reports until the day comes. Click one to change its repeat.</p>
+<p>Repeating entries are added only when their date arrives. To see what is coming, open <b>Transactions</b> and use the forward arrow (up to a year ahead). Upcoming entries show greyed with an <i>Upcoming</i> tag. They are a preview: they do not count in totals, balances or reports until the day comes. Click one to change its repeat, or use <b>Record today</b> to add that occurrence right now instead of waiting for its date &mdash; it posts a real transaction dated today and moves the repeat forward by one as usual, without disturbing any later occurrences.</p>
 <h3>Transfers</h3>
 <p>Choose the account the money leaves (<b>From</b>) and the account it goes to (<b>To</b>). A <b>Transfer fee</b> can be added if you were charged one.</p>
 <p>When the two accounts use different currencies, enter what left one account and what arrived in the other; Pocket Ledger works out the rate. Each account's history stays in its own currency. For example, a USD 100 sale paid into a shilling account appears in the dollar account as USD 100 and in the shilling account as the shilling amount received, with a short note such as <i>From Dollar Account USD 100.00</i>.</p>
@@ -155,7 +155,14 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 <p>Entries dated after today are marked <b>Upcoming</b>. In Settings you can choose whether they count in account balances and totals now or only when their date arrives.</p>
 
 <h2 id="list">5. The Transactions page</h2>
-<p>This is the full list for the period you have chosen, newest first. Each row shows the date, category, account, and the amount. The right-hand column shows the running balance of the account.</p>
+<p>This is the full list for the period you have chosen, newest first. Each row shows the date, category, account, and the amount. The right-hand column shows the running balance of the account. The list is always the same regardless of which tab below is selected &ndash; only the summary above it changes.</p>
+<p>Four tabs sit above the list &ndash; <b>Cash Flow</b>, <b>Expense</b>, <b>Budget</b> and <b>Account</b> &ndash; and switch what the summary strip above the list shows:</p>
+<ul>
+<li><b>Cash Flow</b> (the default) &ndash; Income, Expense and Balance for the period. Tap it to open Reports.</li>
+<li><b>Expense</b> &ndash; total Expense, the average Daily expense across the period, and the single biggest Top expense. Tap it to jump to the search box.</li>
+<li><b>Budget</b> &ndash; your combined category budgets against what you've actually spent, and the Balance left. Tap it to open Budget settings.</li>
+<li><b>Account</b> &ndash; every account's current balance. Tap an account to see just its own activity, or tap "All accounts" to go to the Accounts page.</li>
+</ul>
 <ul>
 <li><b>Search</b> &ndash; press <kbd>/</kbd> and type a note, payee or category.</li>
 <li><b>Filter</b> &ndash; narrow by account, category, project and more. Active filters appear as small chips; use <b>Clear filter</b> to remove them.</li>
@@ -302,9 +309,9 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 <p>Open the entry and edit or delete it. Deleting a goal asks you to confirm, then offers an <b>Undo</b> for a few seconds.</p>
 
 <h3>About this version</h3>
-<p>Version 0.6.35 is the first complete release (MVP) of Pocket Ledger. It covers accounts, transactions, transfers between currencies, budgets, goals, reports, repeating entries and backups. It does not connect to banks or mobile money services, and it does not sync between devices by itself. Please send your suggestions and any problems to the developer.</p>
+<p>Version 0.6.40 is the first complete release (MVP) of Pocket Ledger. It covers accounts, transactions, transfers between currencies, budgets, goals, reports, repeating entries and backups. It does not connect to banks or mobile money services, and it does not sync between devices by itself. Please send your suggestions and any problems to the developer.</p>
 
-<p class="foot">Pocket Ledger 0.6.35 &middot; User guide</p>
+<p class="foot">Pocket Ledger 0.6.40 &middot; User guide</p>
 </div></div><button class="toTop" id="toTop" type="button">&uarr; Back to top</button>
 <script>
 (function(){
