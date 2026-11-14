@@ -1,4 +1,4 @@
-# Building the Pocket Ledger Android app
+# Building the Rumbo Android app
 
 The Android app is the same screens as the Windows app, packaged with Capacitor. All the web files are already built
 in `android-app/www`. Only the Android build step remains. Pick one way.
@@ -6,7 +6,7 @@ in `android-app/www`. Only the Android build step remains. Pick one way.
 ## A. GitHub builds it for you (no tools to install)
 1. Create a private repository on GitHub and push this whole folder to it.
 2. Open the repository's Actions tab, choose "Android APK", then Run workflow (it also runs on every push).
-3. When it finishes, open the run and download the `pocket-ledger-debug-apk` file. Unzip it to get `app-debug.apk`.
+3. When it finishes, open the run and download the `rumbo-debug-apk` file. Unzip it to get `app-debug.apk`.
 
 ## B. Android Studio
 1. Install Android Studio (it brings the Android tools and the right Java).

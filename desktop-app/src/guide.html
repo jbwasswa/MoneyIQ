@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
-<title>Pocket Ledger User Guide</title>
+<title>Rumbo User Guide</title>
 <style>
 :root{--ink:#13211e;--muted:#5b6d69;--line:#d9e3e0;--accent:#0b7a63;--bg:#fff;--soft:#eef3f0;--warn:#a8691a;--bad:#b93a32}
 *{box-sizing:border-box}
@@ -44,11 +44,11 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 @media(prefers-color-scheme:dark){:root{--ink:#e4eeeb;--muted:#8fa29d;--line:#243330;--accent:#3ccba4;--bg:#0a1210;--soft:#141f1c;--warn:#e3b04b;--bad:#f0786e}kbd{background:#141f1c}.g{color:#3ccba4}}
 </style></head><body><div class="layout"><nav class="side" id="side" aria-label="Contents"><b>Contents</b></nav><div class="wrap">
 
-<h1>Pocket Ledger</h1>
-<p class="sub">User guide &middot; Version 0.6.40 (MVP)</p>
-<p>Pocket Ledger helps you see where your money goes and where it is going. You record what you earn and spend, keep track of every account you own (cash, bank, mobile money, loans), set monthly budgets, and follow goals such as an emergency fund or a debt you want to clear. Everything is stored on your own computer.</p>
+<h1 style="display:flex;align-items:center;gap:12px"><svg width="34" height="34" viewBox="0 0 100 100" aria-hidden="true" style="flex:none"><rect width="100" height="100" rx="24" fill="#1B2A4A"/><polyline points="30,30 50,50 30,70" fill="none" stroke="#C9A227" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><polyline points="48,30 68,50 48,70" fill="none" stroke="#F3F1EC" stroke-width="12.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Rumbo</h1>
+<p class="sub">User guide &middot; Version 0.7.0 (MVP)</p>
+<p>Rumbo helps you see where your money goes and where it is going. You record what you earn and spend, keep track of every account you own (cash, bank, mobile money, loans), set monthly budgets, and follow goals such as an emergency fund or a debt you want to clear. Everything is stored on your own computer.</p>
 
-<div class="tip"><b>Why Pocket Ledger exists</b>Pocket Ledger is built around financial discipline &mdash; because that's what it takes to achieve financial freedom. It helps you know where your money goes, build better spending and saving habits, and work deliberately toward the goals that matter to you, whether that's clearing a debt, building an emergency fund, or saving for something specific. You don't need a goal to benefit from the app; tracking your money well is valuable on its own. But when you do set one, Pocket Ledger keeps it visible and keeps you accountable, because the point isn't just to record your money &mdash; it's to help you reach financial freedom.</div>
+<div class="tip"><b>Why Rumbo exists</b>Rumbo is built around financial discipline &mdash; because that's what it takes to achieve financial freedom. It helps you know where your money goes, build better spending and saving habits, and work deliberately toward the goals that matter to you, whether that's clearing a debt, building an emergency fund, or saving for something specific. You don't need a goal to benefit from the app; tracking your money well is valuable on its own. But when you do set one, Rumbo keeps it visible and keeps you accountable, because the point isn't just to record your money &mdash; it's to help you reach financial freedom.</div>
 
 <div class="toc"><b>Contents</b><ol>
 <li><a href="#start">Getting started</a></li>
@@ -68,10 +68,10 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 
 <h2 id="start">1. Getting started</h2>
 <h3>Opening the app</h3>
-<p>Unzip the folder anywhere (for example <b>C:\PocketLedger</b>) and double-click <b>Pocket Ledger.exe</b>. There is nothing to install. Keep the whole folder together. Windows may warn that it protected your PC because the app is not signed yet: choose <b>More info</b>, then <b>Run anyway</b>.</p>
+<p>Unzip the folder anywhere (for example <b>C:\Rumbo</b>) and double-click <b>Rumbo.exe</b>. There is nothing to install. Keep the whole folder together. Windows may warn that it protected your PC because the app is not signed yet: choose <b>More info</b>, then <b>Run anyway</b>.</p>
 <p>Your data is kept separately from this folder, so you can unzip a newer version over an older one and keep everything.</p>
 <h3>Sample data</h3>
-<p>The first time you open Pocket Ledger it shows <b>sample data</b> (marked by a dashed banner) so you can explore. When you are ready to start for real, open <b>Settings &rarr; Backup &amp; restore</b> and choose <b>Clear sample data</b>. You can bring the samples back with <b>Load sample data</b>.</p>
+<p>The first time you open Rumbo it shows <b>sample data</b> (marked by a dashed banner) so you can explore. When you are ready to start for real, open <b>Settings &rarr; Backup &amp; restore</b> and choose <b>Clear sample data</b>. You can bring the samples back with <b>Load sample data</b>.</p>
 <h3>Your first five minutes</h3>
 <ol>
 <li><b>Choose your base currency.</b> Settings &rarr; Currencies. The base currency is the one totals are shown in. Add other currencies and their exchange rates if you use them.</li>
@@ -95,7 +95,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 <li><b>Name</b> &ndash; for example <i>Airtel Money</i>.</li>
 <li><b>Type</b> &ndash; groups and icons your accounts (Cash, Bank, Savings, Mobile money and so on). You can add your own types in Settings &rarr; Account types.</li>
 <li><b>Currency</b> &ndash; the currency this account holds. It is fixed once the account has transactions.</li>
-<li><b>Opening balance</b> &ndash; how much was in the account when you started using Pocket Ledger. Use a negative number for money you owe on it.</li>
+<li><b>Opening balance</b> &ndash; how much was in the account when you started using Rumbo. Use a negative number for money you owe on it.</li>
 <li><b>Included in Totals</b> &ndash; ticked by default. Untick it to leave this account out of the total tiles and the menu total (useful for, say, money you hold on someone else's behalf).</li>
 <li><b>Notes</b> &ndash; anything you want to remember.</li>
 </ul>
@@ -149,7 +149,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 <p>Repeating entries are added only when their date arrives. To see what is coming, open <b>Transactions</b> and use the forward arrow (up to a year ahead). Upcoming entries show greyed with an <i>Upcoming</i> tag. They are a preview: they do not count in totals, balances or reports until the day comes. Click one to change its repeat, or use <b>Record today</b> to add that occurrence right now instead of waiting for its date &mdash; it posts a real transaction dated today and moves the repeat forward by one as usual, without disturbing any later occurrences.</p>
 <h3>Transfers</h3>
 <p>Choose the account the money leaves (<b>From</b>) and the account it goes to (<b>To</b>). A <b>Transfer fee</b> can be added if you were charged one.</p>
-<p>When the two accounts use different currencies, enter what left one account and what arrived in the other; Pocket Ledger works out the rate. Each account's history stays in its own currency. For example, a USD 100 sale paid into a shilling account appears in the dollar account as USD 100 and in the shilling account as the shilling amount received, with a short note such as <i>From Dollar Account USD 100.00</i>.</p>
+<p>When the two accounts use different currencies, enter what left one account and what arrived in the other; Rumbo works out the rate. Each account's history stays in its own currency. For example, a USD 100 sale paid into a shilling account appears in the dollar account as USD 100 and in the shilling account as the shilling amount received, with a short note such as <i>From Dollar Account USD 100.00</i>.</p>
 <div class="tip"><b>Tip</b>Amounts in other currencies: when an expense or income is in a different currency from its account, the history line shows <i>Converted from USD 100.00 at 4,049</i>, so you can always see what happened.</div>
 <h3>Future-dated entries</h3>
 <p>Entries dated after today are marked <b>Upcoming</b>. In Settings you can choose whether they count in account balances and totals now or only when their date arrives.</p>
@@ -274,7 +274,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 
 <h2 id="backup">11. Backup, restore, import and export</h2>
 <h3>Automatic backups</h3>
-<p>Pocket Ledger saves a backup when you close it and keeps the last 10 in <b>Documents\Pocket Ledger Backups</b>. Use <b>File &rarr; Back up now</b> at any time, and <b>File &rarr; Open backup folder</b> to find them.</p>
+<p>Rumbo saves a backup when you close it and keeps the last 10 in <b>Documents\Rumbo Backups</b>. Use <b>File &rarr; Back up now</b> at any time, and <b>File &rarr; Open backup folder</b> to find them. This folder's exact path is also shown on the <b>Settings &rarr; Backup &amp; restore</b> page itself, so you don't need to remember it.</p>
 <h3>Restoring</h3>
 <p>In <b>Settings &rarr; Backup &amp; restore</b> use <b>Restore from text</b> and paste the contents of a backup file. Restoring replaces what is in the app, so make a fresh backup first if unsure.</p>
 <h3>Importing and exporting</h3>
@@ -283,7 +283,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 <li><b>Export as CSV</b> &ndash; save your transactions to open in Excel.</li>
 </ul>
 <h3>Where your data lives</h3>
-<p>Your data is a single file on this computer: <b>%APPDATA%\Pocket Ledger\pocket-ledger.db</b>. <b>File &rarr; Open data folder</b> takes you there. It is not sent anywhere. If you use more than one computer, move data between them with a backup file.</p>
+<p>Your data is a single file on this computer: <b>%APPDATA%\Rumbo\rumbo.db</b>. <b>File &rarr; Open data folder</b> takes you there. It is not sent anywhere. If you use more than one computer, move data between them with a backup file.</p>
 <div class="note"><b>Important</b>Backups are your safety net. Copy a recent backup to a USB drive or cloud folder now and then, so a damaged computer does not take your records with it.</div>
 
 <h2 id="keys">12. Keyboard shortcuts</h2>
@@ -309,9 +309,9 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 <p>Open the entry and edit or delete it. Deleting a goal asks you to confirm, then offers an <b>Undo</b> for a few seconds.</p>
 
 <h3>About this version</h3>
-<p>Version 0.6.40 is the first complete release (MVP) of Pocket Ledger. It covers accounts, transactions, transfers between currencies, budgets, goals, reports, repeating entries and backups. It does not connect to banks or mobile money services, and it does not sync between devices by itself. Please send your suggestions and any problems to the developer.</p>
+<p>Version 0.7.0 is the first complete release (MVP) of Rumbo. It covers accounts, transactions, transfers between currencies, budgets, goals, reports, repeating entries and backups. It does not connect to banks or mobile money services, and it does not sync between devices by itself. Please send your suggestions and any problems to the developer.</p>
 
-<p class="foot">Pocket Ledger 0.6.40 &middot; User guide</p>
+<p class="foot">Rumbo 0.7.0 &middot; User guide</p>
 </div></div><button class="toTop" id="toTop" type="button">&uarr; Back to top</button>
 <script>
 (function(){

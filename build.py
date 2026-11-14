@@ -28,7 +28,7 @@ function save(){
     if(c.book){
       if(window.PLNative){var rs=PLNative.save(JSON.stringify(c.book));plBanner(rs&&rs.ok?'':'Your last change could not be saved to this computer ('+(rs&&rs.error||'unknown error')+'). It is on screen only. Use File > Back up now, then tell the developer.')}
       else localStorage.setItem(CORE_KEY,JSON.stringify(c.book))}
-    else{console.warn('Pocket Ledger core check failed; kept the previous saved copy',c.result.problems);plBanner('Your last change was not saved because it did not pass the data checks ('+c.result.problems[0]+'). It is on screen only.')}}
+    else{console.warn('Rumbo core check failed; kept the previous saved copy',c.result.problems);plBanner('Your last change was not saved because it did not pass the data checks ('+c.result.problems[0]+'). It is on screen only.')}}
   catch(e){window.PL_CHECK={ok:false,problems:[String(e)]};plBanner('Your last change could not be saved ('+e+').')}}"""
 h=rep(h,old,new)
 bundle=open(R+'/desktop-ui/core.bundle.js').read().replace('</script','<\\/script')

@@ -31,7 +31,7 @@ export function validateBook(b: Book): string[] {
 /** Reads either a prototype (schema 1) or a desktop (schema 2) backup. Throws with a plain message if unusable. */
 export function readBackup(text: string): { book: Book; note: string } {
   let o: any; try { o = JSON.parse(text); } catch { throw new Error('That is not a valid backup file.'); }
-  if (!o || o.app !== 'pocket-ledger') throw new Error('This file does not look like a Pocket Ledger backup.');
+  if (!o || (o.app !== 'pocket-ledger' && o.app !== 'rumbo')) throw new Error('This file does not look like a Rumbo backup.');
   let book: Book, note = '';
   if (o.schema === 2) book = { ...(o.data as Book), budgets: o.data?.budgets ?? [] };
   else if (o.schema === 1 || o.schema == null) { const r = migratePrototype(o); book = r.book; note = r.warnings.length ? `${r.warnings.length} entries were skipped.` : ''; }

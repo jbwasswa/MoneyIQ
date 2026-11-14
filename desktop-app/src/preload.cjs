@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('PLNative', {
   loadSync: () => ipcRenderer.sendSync('pl-load'),
   save: json => ipcRenderer.sendSync('pl-save', json),
+  backupDir: () => ipcRenderer.sendSync('pl-backup-dir'),
 });
 // The screens save files through a "downloads" helper; on the desktop that is the native Save dialog.
 contextBridge.exposeInMainWorld('claude', {

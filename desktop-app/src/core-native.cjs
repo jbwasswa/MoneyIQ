@@ -138,8 +138,8 @@ var major = (m, d) => Number((m / 10 ** d).toFixed(d));
 var EVERY = { daily: "day", weekly: "week", monthly: "month", yearly: "year" };
 var FREQ = { day: "daily", week: "weekly", month: "monthly", year: "yearly" };
 function fromPrototype(file) {
-  const d = file && file.app === "pocket-ledger" ? file.data : file;
-  if (!d || !d.base || !Array.isArray(d.tx) || !Array.isArray(d.accounts)) throw new Error("Not a Pocket Ledger backup");
+  const d = file && (file.app === "pocket-ledger" || file.app === "rumbo") ? file.data : file;
+  if (!d || !d.base || !Array.isArray(d.tx) || !Array.isArray(d.accounts)) throw new Error("Not a Rumbo backup");
   const warnings = [];
   const decOf = new Map(d.currencies.map((c) => [c.code, c.dec ?? 2]));
   const dc = (c) => decOf.get(c) ?? 2;

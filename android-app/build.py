@@ -4,7 +4,7 @@ R='/home/claude/pocket-ledger-desktop'; A=R+'/android-app'
 subprocess.run(['python3',R+'/build.py'],check=True)
 h=open(R+'/desktop-app/src/app.html').read()
 h=re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>','',h)
-h=h.replace('<meta name="viewport" content="width=device-width,initial-scale=1">','<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0F2A25">',1)
+h=h.replace('<meta name="viewport" content="width=device-width,initial-scale=1">','<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#1B2A4A">',1)
 i=h.rindex('<script>\n'); assert 'id="pl-main"' not in h
 h=h[:i]+'<script type="text/plain" id="pl-main">\n'+h[i+len('<script>\n'):]
 h=h.replace('</body>','<script src="bridge.js"></script>\n</body>',1)

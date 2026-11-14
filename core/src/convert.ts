@@ -9,8 +9,8 @@ const EVERY: Record<string, Recurring['every']> = { daily: 'day', weekly: 'week'
 const FREQ: Record<Recurring['every'], string> = { day: 'daily', week: 'weekly', month: 'monthly', year: 'yearly' };
 
 export function fromPrototype(file: any): MigrationReport {
-  const d = file && file.app === 'pocket-ledger' ? file.data : file;
-  if (!d || !d.base || !Array.isArray(d.tx) || !Array.isArray(d.accounts)) throw new Error('Not a Pocket Ledger backup');
+  const d = file && (file.app === 'pocket-ledger' || file.app === 'rumbo') ? file.data : file;
+  if (!d || !d.base || !Array.isArray(d.tx) || !Array.isArray(d.accounts)) throw new Error('Not a Rumbo backup');
   const warnings: string[] = [];
   const decOf = new Map<string, number>(d.currencies.map((c: any) => [c.code, c.dec ?? 2]));
   const dc = (c: string) => decOf.get(c) ?? 2;

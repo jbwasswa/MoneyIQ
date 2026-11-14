@@ -1,4 +1,4 @@
-// Android storage and device glue for the Pocket Ledger screens.
+// Android storage and device glue for the Rumbo screens.
 // Data lives in one file inside the app's private storage. Every save keeps the previous version as a fallback,
 // and the screens' own data checks run before anything is written.
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -77,4 +77,4 @@ async function boot() {
   const code = document.getElementById('pl-main').textContent;
   const s2 = document.createElement('script'); s2.textContent = code; document.body.appendChild(s2);
 }
-boot().catch(e => { document.body.insertAdjacentHTML('afterbegin', '<p style="padding:24px;font:16px system-ui">Pocket Ledger could not start: ' + String(e && e.message || e) + '</p>'); });
+boot().catch(e => { document.body.insertAdjacentHTML('afterbegin', '<p style="padding:24px;font:16px system-ui">Rumbo could not start: ' + String(e && e.message || e) + '</p>'); });
