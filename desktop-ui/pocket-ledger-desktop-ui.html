@@ -533,6 +533,7 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .report-multi summary{list-style:none;cursor:pointer;height:38px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
 .report-multi summary::-webkit-details-marker{display:none}
 .report-options{position:absolute;z-index:30;top:42px;left:0;min-width:220px;max-height:260px;overflow:auto;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow);display:grid;gap:8px}
+.report-check.msel-hide{display:none!important}
 .report-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer}
 .report-check input{accent-color:var(--accent)}
 .akind{display:inline-flex;align-items:center;gap:6px}.akind svg{flex:none;opacity:.8}
@@ -1604,7 +1605,7 @@ function txViewHTML(){
   var scAcc=scopedAccId(),isMobile=mobileW(),scoped=(scAcc||isMobile)&&!U.filtersOpen;
   var pivot=scAcc?'flow':(U.pivot||'flow');
   var pivotRow=scAcc?'':'<div class="seg">'+PIVOTS.map(function(p){return '<button class="'+(pivot===p[0]?'on':'')+'" data-a="pivot" data-v="'+p[0]+'">'+p[1]+'</button>'}).join('')+'</div>';
-  var chips='',scopeBar='',toolbar2='';
+  var chips='',scopeToggle='',scopeBar='',toolbar2='';
   if(f.range)chips+=chipx('range',rangeLabel(f.range.from,f.range.to));
   var sa=fAccs(f),sc=fCats(f),sp=fProjs(f),sy=fPayees(f),su=fCurs(f);
   var extra=sc.length+sp.length+sy.length+su.length+(scAcc?0:sa.length)+(f.type!=='all'?1:0);
@@ -1613,7 +1614,13 @@ function txViewHTML(){
      account's own scoped ledger always, and for the general multi-filter
      view on phone widths only - on desktop there's room, so the dropdowns
      stay visible as before. */
-  if(scAcc||isMobile)scopeBar='<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:sliders-horizontal',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button></div>';
+  if(scAcc||isMobile)scopeToggle='<button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button>';
+  /* When there's an active-filter chip to clear AND the Filters/Hide filters
+     toggle, put them on the same row (chip on the left, toggle pinned
+     right) instead of two separate stacked toolbars. */
+  if(chips&&scopeToggle)scopeBar='<div class="toolbar" style="justify-content:space-between">'+chips+scopeToggle+'</div>';
+  else if(scopeToggle)scopeBar='<div class="toolbar" style="justify-content:flex-end">'+scopeToggle+'</div>';
+  else if(chips)scopeBar='<div class="toolbar">'+chips+'</div>';
   if(!scoped){
     var accSel=msel('tx','accs','All accounts',S.accounts.map(function(a){return {id:a.id,name:a.name}}),sa);
     var catSel=msel('tx','cats','All categories',catItems(),sc);
@@ -1621,7 +1628,7 @@ function txViewHTML(){
     var paySel=msel('tx','payees','All payees',payeeList().map(function(x){return {id:x,name:x}}).concat([{id:'-',name:'No payee'}]),sy);
     toolbar2='<div class="toolbar">'+accSel+catSel+projSel+paySel+'<input id="q" type="search" placeholder="Search notes, payees and categories" value="'+esc(f.q)+'" aria-label="Search"></div>';
   }
-  return '<div class="wrap">'+sampleBanner()+pivotRow+(chips?'<div class="toolbar">'+chips+'</div>':'')+scopeBar+toolbar2+'<div id="txbody">'+txBodyHTML(pivot)+'</div></div>';
+  return '<div class="wrap">'+sampleBanner()+pivotRow+scopeBar+toolbar2+'<div id="txbody">'+txBodyHTML(pivot)+'</div></div>';
 }
 function reportMultiFilter(label,key,items){
   var selected=U.r.f[key]||[],count=selected.length;
@@ -1652,7 +1659,8 @@ function msel(scope,key,label,items,selected){
   var opts=items.map(function(x){
     return '<label class="report-check'+(x.sub?' sub':'')+'"><input type="checkbox" data-mf="'+scope+':'+key+'" value="'+esc(x.id)+'"'+(selected.indexOf(x.id)>-1?' checked':'')+'><span>'+esc(x.name)+'</span></label>';
   }).join('');
-  return '<details class="report-multi"'+(U.mfOpen===scope+':'+key?' open':'')+'><summary>'+esc(head)+'</summary><div class="report-options">'+(opts||'<small>None available</small>')+'</div></details>';
+  var searchBox=items.length>6?'<input type="text" class="search msel-q" placeholder="Search '+esc(label.replace(/^All /i,'').toLowerCase())+'…" autocomplete="off">':'';
+  return '<details class="report-multi"'+(U.mfOpen===scope+':'+key?' open':'')+'><summary>'+esc(head)+'</summary><div class="report-options">'+searchBox+(opts||'<small>None available</small>')+'</div></details>';
 }
 function catItems(types){
   var o=[];(types||['exp','inc','xfer']).forEach(function(t){catsFor(t).forEach(function(c){
@@ -2157,7 +2165,7 @@ function sbItemHTML(k){
   return '';
 }
 function renderSide(){
-  var nav=[['overview','Overview',I.home],['tx','Transactions',I.list],['reports','Reports',I.chart],['budgets','Budgets',I.target],['goals','Goals',I.flag],['accounts','Accounts',I.wallet],['settings','Settings',I.sliders]],act=SUBV[U.view]?'settings':U.view;
+  var nav=[['overview','Overview',I.home],['tx','Transactions',I.list],['reports','Reports',I.chart],['budgets','Budgets',I.target],['goals','Goals',I.flag],['accounts','Accounts',I.wallet],['settings','Settings',ico('lu:settings',20)]],act=SUBV[U.view]?'settings':U.view;
   var hid=sbHidden(),items=sbOrderAll().filter(function(k){return hid.indexOf(k)<0}).map(sbItemHTML).join('');
   $('#side').innerHTML='<div class="brand">'+LOGO+'<span>Rumbo</span></div><button class="sadd" data-a="add">'+I.plus16+'New transaction<kbd>N</kbd></button><nav class="snav" aria-label="Sections">'+nav.map(function(n){return '<button data-a="tab" data-v="'+n[0]+'" class="'+(act===n[0]?'on':'')+'"'+(act===n[0]?' aria-current="page"':'')+'>'+n[2]+'<span>'+n[1]+'</span></button>'}).join('')+'</nav><div class="sbp" id="sbp">'+items+'</div>';
   fitSide();
@@ -3109,6 +3117,36 @@ document.addEventListener('input',function(e){
       t.value=commaNum(ex);
       var gPos=0,gSeen=0;while(gPos<t.value.length&&gSeen<gBeforeDigits){if(/[0-9.]/.test(t.value[gPos]))gSeen++;gPos++}
       try{t.setSelectionRange(gPos,gPos)}catch(x){}
+    }
+    return;
+  }
+  if(t.classList&&t.classList.contains('msel-q')){
+    var mqv=t.value.trim().toLowerCase(),mqPanel=t.closest('.report-options');
+    if(mqPanel){
+      /* Category lists mix top-level rows with indented .sub rows beneath
+         them. A match keeps the whole group legible: a hit on the parent
+         keeps all its subcategories showing too, and a hit on a sub keeps
+         its parent visible for context even if the parent name itself
+         doesn't match. .report-check carries `display:flex !important` at
+         some widths, so hiding a row needs its own !important class rather
+         than an inline style, which that would simply outrank. */
+      var mqGroups=[],mqCur=null;
+      Array.prototype.forEach.call(mqPanel.querySelectorAll('label.report-check'),function(lb){
+        if(!lb.classList.contains('sub')){mqCur={parent:lb,subs:[]};mqGroups.push(mqCur)}
+        else if(mqCur)mqCur.subs.push(lb);
+      });
+      var mqAny=false;
+      mqGroups.forEach(function(g){
+        var pHit=!mqv||(g.parent.textContent||'').toLowerCase().indexOf(mqv)>-1;
+        var subHits=g.subs.map(function(s){return !mqv||(s.textContent||'').toLowerCase().indexOf(mqv)>-1});
+        var anySub=subHits.indexOf(true)>-1;
+        g.parent.classList.toggle('msel-hide',!(pHit||anySub));
+        if(pHit||anySub)mqAny=true;
+        g.subs.forEach(function(s,i){s.classList.toggle('msel-hide',!(pHit||subHits[i]))});
+      });
+      var mqNone=mqPanel.querySelector('.msel-none');
+      if(!mqAny){if(!mqNone){mqNone=document.createElement('small');mqNone.className='msel-none';mqNone.textContent='No matches';mqPanel.appendChild(mqNone)}}
+      else if(mqNone)mqNone.remove();
     }
     return;
   }
