@@ -106,6 +106,8 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 .ib{width:40px;height:40px;border-radius:50%;display:grid;place-items:center}
 .ib:hover{background:var(--line)}
 .ib[disabled]{opacity:.3;cursor:default;background:none}
+.ib.addfab{background:var(--accent);color:var(--accent-ink);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 45%,transparent)}
+.ib.addfab:hover{background:var(--accent)}
 .month{display:flex;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;min-height:42px}
 .month b{font:700 16px var(--f-display);min-width:136px;text-align:center}
 .month .pl{font:700 16px var(--f-display);min-width:136px;text-align:center;white-space:nowrap;padding:0 8px;height:34px;border-radius:8px;color:var(--ink);cursor:pointer}.month .pl:hover{background:var(--line)}.month .pl:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent)}
@@ -328,7 +330,9 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .tabs{display:grid;grid-template-columns:repeat(6,1fr);align-items:center;border-top:1px solid var(--line);background:var(--surface);padding-block:6px 8px}
 .tabs button.t{display:grid;justify-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--muted);padding:4px 0;min-width:0}
 .tabs button.t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.tabs button.t .ti{display:grid;place-items:center;width:44px;height:26px;border-radius:14px;transition:background-color .15s ease}
 .tabs button.t.on{color:var(--accent)}
+.tabs button.t.on .ti{background:color-mix(in srgb,var(--accent) 18%,transparent)}
 
 /* sheet, dialogs */
 #sheet,#dlg,#pick{position:absolute;inset:0;z-index:20}#pick{z-index:21}#dlg{z-index:22}
@@ -1263,6 +1267,7 @@ function cleanExpr(v){
   }).join('').slice(0,30);
 }
 function narrow(){return window.matchMedia&&window.matchMedia('(max-width:699px)').matches}
+function mobileW(){return window.matchMedia&&window.matchMedia('(max-width:899px)').matches}
 var tt;
 function toast(msg,undo){
   var el=$('#toast');el.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button data-a="undo">Undo</button>':'');el.hidden=false;
@@ -1593,7 +1598,7 @@ function txBodyHTML(pivot){
 }
 function txViewHTML(){
   var f=U.f;
-  var scAcc=scopedAccId(),scoped=scAcc&&!U.filtersOpen;
+  var scAcc=scopedAccId(),isMobile=mobileW(),scoped=(scAcc||isMobile)&&!U.filtersOpen;
   var pivot=scAcc?'flow':(U.pivot||'flow');
   var pivotRow=scAcc?'':'<div class="seg">'+PIVOTS.map(function(p){return '<button class="'+(pivot===p[0]?'on':'')+'" data-a="pivot" data-v="'+p[0]+'">'+p[1]+'</button>'}).join('')+'</div>';
   var chips='',scopeBar='',toolbar2='';
@@ -1601,7 +1606,11 @@ function txViewHTML(){
   var sa=fAccs(f),sc=fCats(f),sp=fProjs(f),sy=fPayees(f),su=fCurs(f);
   var extra=sc.length+sp.length+sy.length+su.length+(scAcc?0:sa.length)+(f.type!=='all'?1:0);
   if(extra>0)chips+='<button class="pill x" data-a="clearMulti">Clear filters'+I.x+'</button>';
-  if(scAcc)scopeBar='<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:sliders-horizontal',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button></div>';
+  /* Filters are collapsed behind a toggle (not rendered inline) for a single
+     account's own scoped ledger always, and for the general multi-filter
+     view on phone widths only - on desktop there's room, so the dropdowns
+     stay visible as before. */
+  if(scAcc||isMobile)scopeBar='<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="toggleFilters" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:sliders-horizontal',16)+(U.filtersOpen?'Hide filters':'Filters')+'</button></div>';
   if(!scoped){
     var accSel=msel('tx','accs','All accounts',S.accounts.map(function(a){return {id:a.id,name:a.name}}),sa);
     var catSel=msel('tx','cats','All categories',catItems(),sc);
@@ -2162,7 +2171,7 @@ function fwdOk(nr){var td=iso(new Date());return nr[1]<td||(U.view==='tx'&&dAdd(
 function renderTop(){
   var v=U.view,subv=!!SUBV[v];
   var scAcc=v==='tx'?scopedAccId():'';
-  var back=v==='accorder'?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':(v==='settings'?'':'<button class="ib mob" data-a="tab" data-v="settings" aria-label="Settings menu">'+I.menu+'</button>'));
+  var back=v==='accorder'?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':(v==='settings'?'':'<button class="ib mob" data-a="tab" data-v="settings" aria-label="Settings">'+ico('lu:settings',22)+'</button>'));
   var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
   var rg=(v==='tx'&&U.f.range)?[U.f.range.from,U.f.range.to]:(v==='reports'&&U.r.period!=='month')?rptRange():null;
   if(MONTHLY[v]){
@@ -2173,7 +2182,7 @@ function renderTop(){
       h+=pv+'<div class="month"><button class="ib" data-a="prev" aria-label="Previous '+nm+'">'+I.left+'</button><button class="pl" data-a="today" title="Go to the current '+nm+'" aria-label="'+esc(ep==='month'?ymLabel(U.ym):perLabel())+'. Go to the current '+nm+'">'+esc(ep==='month'?ymLabel(U.ym):perLabel())+'</button><button class="ib" data-a="next" aria-label="Next '+nm+'"'+(fwdOk(nr)?'':' disabled')+'>'+I.right+'</button></div>';
     }
   }
-  h+='<button class="ib mob" data-a="add" aria-label="New transaction">'+I.plus+'</button>';
+  h+='<button class="ib mob addfab" data-a="add" aria-label="New transaction">'+I.plus+'</button>';
   h+='<button class="hadd" data-a="add">'+I.plus16+'New transaction</button>';
   $('#top').innerHTML=h;
 }
@@ -2181,7 +2190,7 @@ var TABS=[['overview','Overview',I.home],['accounts','Accounts',I.wallet],['tx',
 function renderTabs(){
   $('#tabs').innerHTML=TABS.map(function(x){
     var on=U.view===x[0];
-    return '<button class="t'+(on?' on':'')+'" data-a="tab" data-v="'+x[0]+'">'+x[2]+'<span>'+x[1]+'</span></button>';
+    return '<button class="t'+(on?' on':'')+'" data-a="tab" data-v="'+x[0]+'"><span class="ti">'+x[2]+'</span><span>'+x[1]+'</span></button>';
   }).join('');
 }
 function renderScreen(keep){var sc=$('#screen'),y=sc.scrollTop;sc.innerHTML=VIEWS[U.view]();sc.scrollTop=keep?y:0}
@@ -2750,13 +2759,13 @@ function gtypesHTML(){
 
 /* ---------- actions ---------- */
 var A={
-  tab:function(v){if(v==='tx'&&U.scopeAcc){U.scopeAcc='';U.f.acc=''}if(v==='tx')U.pivot='flow';if(v!=='accorder')U.accPick=null;if(v!=='ovlayout'&&v!=='settings')U.ovPick=null;if(v!=='settings')U.sbPick=null;U.view=v;render()},
+  tab:function(v){if(v==='tx'&&U.scopeAcc){U.scopeAcc='';U.f.acc=''}if(v==='tx'){U.pivot='flow';U.filtersOpen=false}if(v!=='accorder')U.accPick=null;if(v!=='ovlayout'&&v!=='settings')U.ovPick=null;if(v!=='settings')U.sbPick=null;U.view=v;render()},
   prev:function(){var ep=effPer();goDate(perShift(-1,ep,ep==='month'?U.ym+'-01':U.pd));U.f.range=null;render(true)},
   next:function(){var ep=effPer(),b=ep==='month'?U.ym+'-01':U.pd;if(fwdOk(perOf(ep,b))){goDate(perShift(1,ep,b));U.f.range=null;render(true)}},
   today:function(){goDate(iso(new Date()));U.f.range=null;render(true)},
   setPer:function(v){if(!PERS.some(function(x){return x[0]===v}))return;var td=iso(new Date()),r=perOf(U.per),keep=r[0]<=td&&td<=r[1]?td:U.pd;U.per=v;goDate(keep>td?td:keep);U.f.range=null;render()},
   focusSearch:function(){var q=$('#q');if(q){q.focus();q.scrollIntoView({block:'center',behavior:'smooth'})}},
-  loanFilter:function(v){var p=v.split('|'),ds=S.tx.filter(function(t){return t.acc===p[0]||t.to===p[0]}).map(function(t){return t.date}).sort(),today=iso(new Date());U.f={type:'all',acc:p[0],cat:'',sub:'',project:'',payee:p[1],cur:'',range:{from:ds[0]||today,to:(ds[ds.length-1]>today?ds[ds.length-1]:today)},accs:[],projs:[],q:''};U.pivot='flow';U.view='tx';render()},
+  loanFilter:function(v){var p=v.split('|'),ds=S.tx.filter(function(t){return t.acc===p[0]||t.to===p[0]}).map(function(t){return t.date}).sort(),today=iso(new Date());U.f={type:'all',acc:p[0],cat:'',sub:'',project:'',payee:p[1],cur:'',range:{from:ds[0]||today,to:(ds[ds.length-1]>today?ds[ds.length-1]:today)},accs:[],projs:[],q:''};U.pivot='flow';U.filtersOpen=false;U.view='tx';render()},
   accFilter:function(v){U.f={type:'all',acc:v,cat:'',sub:'',project:'',payee:'',cur:'',range:null,accs:[],projs:[],q:''};U.scopeAcc=v;U.filtersOpen=false;U.pivot='flow';U.view='tx';render()},
   toggleFilters:function(){U.filtersOpen=!U.filtersOpen;render(true)},
   pivot:function(v){U.pivot=v;render(true)},
@@ -2764,7 +2773,7 @@ var A={
     var it=RPT[+v];if(!it)return;var rf=U.r.f,rg=rptRange();
     U.f={type:U.r.type==='flow'?'all':U.r.type,acc:'',accs:rf.accounts.slice(),cat:rf.cat,sub:rf.sub,project:'',projs:rf.projects.slice(),payee:rf.payee,cur:rf.cur,range:{from:rg[0],to:rg[1]},q:''};
     for(var k in it.drill){if(k==='acc'){U.f.acc=it.drill.acc;U.f.accs=[]}else if(k==='project'&&it.drill.project!=='-'){U.f.projs=[it.drill.project]}else U.f[k]=it.drill[k]}
-    U.pivot='flow';U.view='tx';render();
+    U.pivot='flow';U.filtersOpen=false;U.view='tx';render();
   },
   rset:function(v){var i=v.indexOf(':'),k=v.slice(0,i),val=v.slice(i+1);U.r[k]=val;render(true)},
   rtoggle:function(){U.r.open=!U.r.open;render(true)},
@@ -3252,7 +3261,7 @@ document.addEventListener('keydown',function(e){
   }
   if(typing){if(e.key==='Escape')tg.blur();return}
   if(e.key==='n'||e.key==='N'){e.preventDefault();openSheet(null)}
-  else if(e.key==='/'){e.preventDefault();if(U.view!=='tx'){U.pivot='flow';U.view='tx';render()}var q=$('#q');if(q)q.focus()}
+  else if(e.key==='/'){e.preventDefault();var needRender=false;if(U.view!=='tx'){U.pivot='flow';U.view='tx';needRender=true}if(!scopedAccId()&&mobileW()&&!U.filtersOpen){U.filtersOpen=true;needRender=true}if(needRender)render();var q=$('#q');if(q)q.focus()}
   else if(e.key==='['&&MONTHLY[U.view]&&(U.view!=='reports'||U.r.period==='month'))A.prev();
   else if(e.key===']'&&MONTHLY[U.view]&&(U.view!=='reports'||U.r.period==='month'))A.next();
 });
