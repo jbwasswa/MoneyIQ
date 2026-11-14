@@ -5,6 +5,10 @@ subprocess.run(['python3',R+'/build.py'],check=True)
 h=open(R+'/desktop-app/src/app.html').read()
 h=re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>','',h)
 h=h.replace('<meta name="viewport" content="width=device-width,initial-scale=1">','<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#1B2A4A">',1)
+# Android: use the phone's own system font instead of the desktop's embedded webfonts.
+h=h.replace("--f-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;","--f-display:-apple-system,system-ui,Roboto,sans-serif;",1)
+h=h.replace("--f-body:'Instrument Sans','Segoe UI',system-ui,sans-serif;","--f-body:-apple-system,system-ui,Roboto,sans-serif;",1)
+h=re.sub(r"@font-face\{font-family:'(?:Bricolage Grotesque|Instrument Sans)'[^}]*\}",'',h)
 i=h.rindex('<script>\n'); assert 'id="pl-main"' not in h
 h=h[:i]+'<script type="text/plain" id="pl-main">\n'+h[i+len('<script>\n'):]
 h=h.replace('</body>','<script src="bridge.js"></script>\n</body>',1)

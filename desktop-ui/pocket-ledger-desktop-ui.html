@@ -256,6 +256,17 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
   .row{grid-template-columns:40px minmax(0,1fr) auto}
 }
 
+/* Phone widths: the category icon and the gaps around it were taking space
+   the amount/balance text needed, truncating category names hard. Shrink the
+   icon, tighten the gaps and padding, and trim the amount text a touch so the
+   category label gets most of the room back. */
+@media (max-width:420px){
+  .row{grid-template-columns:32px minmax(0,1fr) auto;gap:8px;padding:10px 10px}
+  .dot{width:32px;height:32px}
+  .amtc{font-size:14px}
+  .amtc small{font-size:11px}
+}
+
 /* budgets, accounts, categories, currencies, settings */
 .bud{display:grid;gap:8px;width:100%;text-align:left;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:16px}
 .bud .h{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center}
