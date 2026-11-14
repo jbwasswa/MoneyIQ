@@ -146,7 +146,7 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 .tipcat.app{color:var(--accent);border-color:var(--accent)}
 .seg{display:inline-flex;background:var(--line);border-radius:12px;padding:3px;gap:2px;flex-wrap:wrap}
 .seg button{padding:7px 14px;border-radius:9px;font-weight:600;font-size:13px;color:var(--muted)}
-.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.seg button.on{background:var(--surface);color:var(--ink);border:1px solid color-mix(in srgb,var(--accent) 38%,transparent);box-shadow:0 1px 3px color-mix(in srgb,var(--ink) 18%,transparent)}
 .pill{padding:6px 13px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:500;font-size:13px}
 .pill.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .btn{height:44px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font-weight:600;padding:0 18px}
@@ -613,6 +613,21 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
   .row.account-row,.compact .row.account-row{grid-template-columns:34px minmax(0,1fr) auto auto !important;column-gap:8px !important}
   .row.account-row>.amtc{text-align:right}
   .account-ledger-head{display:none !important}
+}
+
+/* Phone widths: the account ledger has two numeric columns (amount, running
+   balance) on top of the icon, so it needs its own, tighter squeeze beyond
+   the general row fix above - otherwise the category name truncates hard
+   here even after that fix. */
+@media (max-width:420px){
+  /* "auto auto" let the amount/balance columns balloon to fit the account-
+     path text underneath them (e.g. "Savings Account -> MTN MoMo"), which
+     shares those same columns - not the number itself. Capping them to what
+     the numbers actually need forces that path text to truncate instead,
+     and hands the real space back to the category name. */
+  .row.account-row,.compact .row.account-row{grid-template-columns:32px minmax(0,1fr) minmax(0,72px) minmax(0,78px) !important;column-gap:6px !important}
+  .balance-col{font-size:13px}
+  .row.account-row>.ledsub,.row.account-row>.ledacct{font-size:10.5px}
 }
 
 .col{display:grid;gap:16px;align-content:start;min-width:0}
@@ -1344,7 +1359,11 @@ function rowHTML(t,runningBalance){
   var displayCur=ac,displayAmount=t.amount;
   var led=runningBalance!=null,sel=led?ledgerAcc():'',dir=xf?(led?(t.to===sel?'in':t.acc===sel?'out':''):''):(t.type==='inc'?'in':'out');
   if(xf&&led&&dir==='in'&&b){displayCur=b.cur;displayAmount=t.amountTo==null?t.amount:t.amountTo}
-  var main=(dir==='in'?'+':dir==='out'?'−':'')+displayCur+' '+fmt(displayAmount,dec(displayCur));
+  /* In a single-account ledger the currency is already shown in the account
+     header, so repeating it on every row (as the general list does) only
+     steals width the category name needs. The balance column already
+     leaves it off; match that here. */
+  var main=(dir==='in'?'+':dir==='out'?'−':'')+(led?'':displayCur+' ')+fmt(displayAmount,dec(displayCur));
   var conv=t.txnCur&&t.txnCur!==displayCur&&t.txnAmount!=null&&t.txnAmount>0;
   var cr=conv?(t.txnRate>0?t.txnRate:t.amount/t.txnAmount):0;
   var second=conv?'Converted from '+t.txnCur+' '+fmt(t.txnAmount,dec(t.txnCur))+' at '+fmt(cr,rateDec(cr)):xf?(led&&dir==='in'&&b?(ac!==b.cur?'From '+ac+' '+fmt(t.amount,dec(ac)):''):b&&b.cur!==ac?'→ '+b.cur+' '+fmt(t.amountTo,dec(b.cur)):''):(foreign?'≈ '+fmt(bv(t)):'');
@@ -3170,13 +3189,20 @@ document.addEventListener('change',function(e){
     if(U.sheet||U.pick||U.dlg)return;
     if(!tabsVisible())return;
     if(TABS.map(function(x){return x[0]}).indexOf(U.view)<0)return;
-    if(U.view==='tx'&&scopedAccId())return;
     var t=e.touches?e.touches[0]:e;sx=t.clientX;sy=t.clientY;tracking=true;
   }
   function onEnd(e){
     if(!tracking)return;tracking=false;
     var t=e.changedTouches?e.changedTouches[0]:e,dx=t.clientX-sx,dy=t.clientY-sy;
     if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    /* Inside a single account's own ledger (scoped), swiping between the
+       bottom-nav tabs would be a confusing way to leave the screen you're
+       looking at - swipe the period (same as the < > buttons) instead,
+       the same gesture AndroMoney's own date navigator supports. */
+    if(U.view==='tx'&&scopedAccId()){
+      if(MONTHLY[U.view]){if(dx<0)A.next();else A.prev()}
+      return;
+    }
     var order=TABS.map(function(x){return x[0]}),i=order.indexOf(U.view);
     if(i<0)return;
     var ni=dx<0?i+1:i-1;
