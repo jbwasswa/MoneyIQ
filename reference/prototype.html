@@ -1735,7 +1735,7 @@ function reportsHTML(){
     '<div class="toolbar"><select id="r-period" aria-label="Period">'+PERIODS.map(function(p){return '<option value="'+p[0]+'"'+(r.period===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select>'+
     (r.period==='custom'?dateInput('r-from',rg[0],'From')+dateInput('r-to',rg[1],'To'):'')+
     (flow?'':'<select id="r-grp" aria-label="Group by">'+[['cat','Group by category'],['sub','Group by subcategory'],['acc','Group by account'],['proj','Group by project'],['payee','Group by payee']].map(function(g){return '<option value="'+g[0]+'"'+(r.grp===g[0]?' selected':'')+'>'+g[1]+'</option>'}).join('')+'</select>')+
-    '<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'">Filters'+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button></div>';
+    '<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(r.open?'Hide filters':'Filters')+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button></div>';
   var pay=payeeList();
   var panel=r.open?'<section class="card fp"><div class="fgrid">'+
     '<div class="mfw">Account<span></span>'+reportMultiFilter('Accounts','accounts',S.accounts)+'</div>'+
