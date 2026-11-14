@@ -111,8 +111,8 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 .ib.addfab{background:var(--accent);color:var(--accent-ink);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 45%,transparent)}
 .ib.addfab:hover{background:var(--accent)}
 .month{display:flex;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;min-height:42px}
-.month b{font:700 16px var(--f-display);min-width:136px;text-align:center}
-.month .pl{font:700 16px var(--f-display);min-width:136px;text-align:center;white-space:nowrap;padding:0 8px;height:34px;border-radius:8px;color:var(--ink);cursor:pointer}.month .pl:hover{background:var(--line)}.month .pl:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent)}
+.month b{font:700 16px var(--f-display);min-width:92px;text-align:center}
+.month .pl{font:700 16px var(--f-display);min-width:92px;text-align:center;white-space:nowrap;padding:0 8px;height:34px;border-radius:8px;color:var(--ink);cursor:pointer}.month .pl:hover{background:var(--line)}.month .pl:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent)}
 .persel{height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 14px var(--f-body,inherit);padding:0 12px;cursor:pointer;width:auto;max-width:none}
 .dlgc label.incl{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;color:var(--ink)}.dlgc label.incl input{width:20px;height:20px;min-width:20px;padding:0;accent-color:var(--accent);flex:none}
 .persel:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
@@ -122,13 +122,13 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 @media (max-width:899px){.mob-hide{display:none!important}.only-mob{display:block!important}}
 @media (min-width:900px){.hadd{display:inline-flex}.mob{display:none}}
 .seclabel{padding:14px 0 6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-@media (max-width:899px){.top h1.hm{display:none}.top .month{flex:1}.top .month b,.top .month .pl{flex:1}}
+@media (max-width:899px){.top h1.hm{display:none}.top{gap:5px 6px}.top .ib{width:34px;height:34px}.top .persel{height:34px;padding:0 8px;font-size:12.5px}.top .month{flex:1;min-height:34px}.top .month b,.top .month .pl{flex:1;min-width:60px}.top .month .pl{height:28px;font-size:13px;padding:0 4px}}
 
 /* shared */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0}
 .card h2{margin:0;font:700 16px var(--f-display);letter-spacing:-.005em}
 .card .sub{margin:2px 0 12px;color:var(--muted);font-size:13px}
-.chd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px}
+.chd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .chdl{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
 .lnk{color:var(--accent);font-weight:600;font-size:13px}
 .g{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
@@ -202,6 +202,12 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 .kpi.hero .lab,.kpi.hero .kd{color:inherit;opacity:.82}
 .dg{color:var(--inc);font-weight:600} .db{color:var(--exp);font-weight:600}
 .kpi.hero .dg,.kpi.hero .db{color:inherit}
+@media(max-width:899px){
+  .kpis.cardsm .kpi{padding:10px 12px;gap:1px}
+  .kpis.cardsm .kpi .lab{font-size:10.5px}
+  .kpis.cardsm .kpi .kv{font-size:19px;order:3}
+  .kpis.cardsm .kpi .kd{font-size:11px;order:2;margin-top:1px}
+}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .stat b{display:block;font:700 18px var(--f-display);overflow-wrap:anywhere}
 
@@ -1205,6 +1211,7 @@ function inTot(a){return a.inTotals!==false}
 function totals(){var A=0,L=0,n=0;S.accounts.forEach(function(a){if(!inTot(a))return;n++;var v=bal(a)*cur(a.cur).rate;if(v>0)A+=v;else if(v<0)L+=-v});return {a:A,l:L,n:A-L,count:n}}
 function totalBal(){return totals().n}
 function ymLabel(ym){var p=ym.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'})}
+function ymLabelShort(ym){var p=ym.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString('en-GB',{month:'short',year:'numeric'})}
 function monName(ym){return MON[+ym.slice(5)-1]}
 function shiftFrom(ym,n){var p=ym.split('-');var d=new Date(+p[0],+p[1]-1+n,1);return d.getFullYear()+'-'+p2(d.getMonth()+1)}
 function dimOf(ym){var p=ym.split('-');return new Date(+p[0],+p[1],0).getDate()}
@@ -1233,6 +1240,21 @@ function perLabel(per,pd){
   if(per==='day'){var p=pd.split('-');return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString('en-GB',{weekday:'short'})+', '+fmtDate(pd)}
   var r=perOf('week',pd),a=r[0].split('-'),b=r[1].split('-');
   return a[2]+(a[1]!==b[1]||a[0]!==b[0]?' '+MON[+a[1]-1]:'')+(a[0]!==b[0]?' '+a[0]:'')+' – '+b[2]+' '+MON[+b[1]-1]+' '+b[0];
+}
+function isoWeekOf(ds){
+  var p=ds.split('-'),d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
+  var dow=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-dow+3);
+  var y=d.getUTCFullYear(),jan4=new Date(Date.UTC(y,0,4)),jdow=(jan4.getUTCDay()+6)%7;
+  jan4.setUTCDate(jan4.getUTCDate()-jdow+3);
+  var wk=1+Math.round((d-jan4)/(7*864e5));
+  return {week:wk,year:y};
+}
+/* short nav-bar label: same as perLabel for day/year, abbreviated month, "Week N, YYYY" for week */
+function navLabel(per,pd){
+  per=per||U.per;pd=pd||U.pd;
+  if(per==='month')return ymLabelShort(pd.slice(0,7));
+  if(per==='year'||per==='day')return perLabel(per,pd);
+  var iw=isoWeekOf(pd);return 'Week '+iw.week+', '+iw.year;
 }
 function perTx(){var r=perOf();return txRange(r[0],r[1])}
 function goDate(d){U.pd=d;U.ym=d.slice(0,7)}
@@ -1552,7 +1574,7 @@ function overviewHTML(){
     accounts:'<section class="card"><div class="chd"><h2>Accounts</h2><button class="lnk" data-a="tab" data-v="accounts">All accounts</button></div>'+orderedAccounts().slice(0,8).map(function(a){var b=bal(a);return '<button class="arow" data-a="accFilter" data-v="'+a.id+'"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button>'}).join('')+'<div class="arow" style="border-top:1px solid var(--line);border-bottom:0;font-weight:600"><span>Total in '+esc(S.base)+'</span><b class="num">'+fmt(totalBal())+'</b></div></section>'
   };
   return '<div class="wrap">'+sampleBanner()+tipBanner()+backupNudge()+
-    '<div class="kpis">'+kpi('Net '+PNOUN,(net<0?'−':'')+S.base+' '+fmt(Math.abs(net)),delta(net,pnet,true,pl),net<0?'hero bad':net>0?'hero good':'hero')+kpi('Income',S.base+' '+fmt(inc),delta(inc,pinc,true,pl),'tin')+kpi('Expense',S.base+' '+fmt(exp),delta(exp,pexp,false,pl),'tout')+kpi('Savings rate',inc>0?rate+'%':'—',inc>0&&pinc>0?(rate>=prate?'<span class="dg">↑ ':'<span class="db">↓ ')+Math.abs(rate-prate)+' pts</span> vs '+pl:'No data for '+pl,inc>0&&net>0?'tin':inc>0&&net<0?'tout':'')+'</div>'+
+    '<div class="kpis cardsm">'+kpi('Net '+PNOUN,(net<0?'−':'')+S.base+' '+fmt(Math.abs(net)),delta(net,pnet,true,pl),net<0?'hero bad':net>0?'hero good':'hero')+kpi('Income',S.base+' '+fmt(inc),delta(inc,pinc,true,pl),'tin')+kpi('Expense',S.base+' '+fmt(exp),delta(exp,pexp,false,pl),'tout')+kpi('Savings rate',inc>0?rate+'%':'—',inc>0&&pinc>0?(rate>=prate?'<span class="dg">↑ ':'<span class="db">↓ ')+Math.abs(rate-prate)+' pts</span> vs '+pl:'No data for '+pl,inc>0&&net>0?'tin':inc>0&&net<0?'tout':'')+'</div>'+
     '<div class="g ovg c'+ovCols()+'">'+ovSections().map(function(k){return secs[k]}).join('')+'</div></div>';
 }
 function catOptions(sel,types){
@@ -1751,8 +1773,8 @@ function reportsHTML(){
   }
   var seg=function(arr,key,c){return '<div class="seg">'+arr.map(function(x){return '<button class="'+(c===x[0]?'on':'')+'" data-a="rset" data-v="'+key+':'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div>'};
   var chips=rptChips();
-  var ctl='<div class="toolbar" style="justify-content:space-between">'+seg([['exp','Expense'],['inc','Income'],['flow','Cash flow']],'type',typ)+seg([['pie','Pie'],['bar','Bar'],['trend','Trend']],'chart',r.chart)+'</div>'+
-    '<div class="toolbar"><select id="r-period" aria-label="Period">'+PERIODS.map(function(p){return '<option value="'+p[0]+'"'+(r.period===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select>'+
+  var ctl='<div class="toolbar" style="justify-content:space-between">'+seg([['exp','Expense'],['inc','Income'],['flow','Cash flow']],'type',typ)+'</div>'+
+    '<div class="toolbar">'+
     (r.period==='custom'?dateInput('r-from',rg[0],'From')+dateInput('r-to',rg[1],'To'):'')+
     (flow?'':'<select id="r-grp" aria-label="Group by">'+[['cat','Group by category'],['sub','Group by subcategory'],['acc','Group by account'],['proj','Group by project'],['payee','Group by payee']].map(function(g){return '<option value="'+g[0]+'"'+(r.grp===g[0]?' selected':'')+'>'+g[1]+'</option>'}).join('')+'</select>')+
     '<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(r.open?'Hide filters':'Filters')+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button></div>';
@@ -1766,7 +1788,7 @@ function reportsHTML(){
   var chipRow=chips.length?'<div class="toolbar">'+chips.map(function(c){return '<button class="pill x" data-a="rclear" data-v="'+c[0]+'">'+esc(c[1])+I.x+'</button>'}).join('')+'</div>':'';
   return '<div class="wrap">'+sampleBanner()+ctl+panel+chipRow+'<p class="rnote">'+esc(rangeLabel(rg[0],rg[1]))+' · amounts in '+esc(S.base)+(r.period==='month'?' · use the arrows at the top to change month':'')+'</p>'+
     '<div class="kpis">'+stats.map(function(s){return '<div class="stat"><span class="lab">'+s[0]+'</span><b class="num '+s[2]+'">'+s[1]+'</b></div>'}).join('')+'</div>'+
-    '<div class="g"><section class="card"><h2>'+chartTitle+'</h2><p class="sub">'+(flow?'Income and expense':word.charAt(0).toUpperCase()+word.slice(1))+'</p>'+chartHTML+'</section><section class="card">'+detail+'</section></div></div>';
+    '<div class="g"><section class="card"><div class="chd"><h2>'+chartTitle+'</h2>'+seg([['pie','Pie'],['bar','Bar'],['trend','Trend']],'chart',r.chart)+'</div><p class="sub">'+(flow?'Income and expense':word.charAt(0).toUpperCase()+word.slice(1))+'</p>'+chartHTML+'</section><section class="card">'+detail+'</section></div></div>';
 }
 function budgetsHTML(){
   var rows=budgetRows(),configured=rows.filter(function(x){return x.b>0}),tb=configured.reduce(function(s,x){return s+x.b},0),ts=configured.reduce(function(s,x){return s+x.s},0);
@@ -1832,7 +1854,7 @@ function accountsHTML(){
   }).join('');
   var T=totals(),nA=0,nL=0,nX=S.accounts.length-T.count,kv=function(v,neg){return (neg?'−':'')+'<span class="kcur">'+esc(S.base)+'</span> '+fmt(v)};
   S.accounts.forEach(function(a){if(!inTot(a))return;var v=bal(a);if(v>0)nA++;else if(v<0)nL++});
-  var kp='<div class="kpis"><div class="kpi tin"><span class="lab">Total assets</span><strong class="kv num">'+kv(T.a)+'</strong><span class="kd">'+nA+' account'+(nA===1?'':'s')+' with money in them</span></div><div class="kpi tout"><span class="lab">Total liabilities</span><strong class="kv num">'+kv(T.l)+'</strong><span class="kd">'+nL+' account'+(nL===1?'':'s')+' you owe on</span></div><div class="kpi hero'+(T.n>0?' good':T.n<0?' bad':'')+'"><span class="lab">Balance</span><strong class="kv num">'+kv(Math.abs(T.n),T.n<0)+'</strong><span class="kd">Assets minus liabilities'+(nX?' · '+nX+' account'+(nX===1?'':'s')+' left out':'')+', at today\'s rates</span></div></div>';
+  var kp='<div class="kpis cardsm"><div class="kpi tin"><span class="lab">Total assets</span><strong class="kv num">'+kv(T.a)+'</strong><span class="kd">'+nA+' Account'+(nA===1?'':'s')+'</span></div><div class="kpi tout"><span class="lab">Total liabilities</span><strong class="kv num">'+kv(T.l)+'</strong><span class="kd">'+nL+' Account'+(nL===1?'':'s')+'</span></div><div class="kpi hero'+(T.n>0?' good':T.n<0?' bad':'')+'"><span class="lab">Balance</span><strong class="kv num">'+kv(Math.abs(T.n),T.n<0)+'</strong><span class="kd">Net Position'+(nX?' · '+nX+' account'+(nX===1?'':'s')+' left out':'')+'</span></div></div>';
   var incl=orderedAccounts().filter(inTot),excl=orderedAccounts().filter(function(a){return !inTot(a)});
   var listRows=incl.map(accRowHTML).join('')+(excl.length?'<div class="seclabel">Not included in totals</div>'+excl.map(accRowHTML).join(''):'');
   var mobList=S.accounts.length?'<section class="card only-mob" style="padding:4px 18px">'+listRows+'</section>':'';
@@ -2186,11 +2208,12 @@ function renderTop(){
   var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
   var rg=(v==='tx'&&U.f.range)?[U.f.range.from,U.f.range.to]:(v==='reports'&&U.r.period!=='month')?rptRange():null;
   if(MONTHLY[v]){
-    var ep=effPer(),pv=(v==='overview'||v==='tx')?'<select id="per-sel" class="persel" aria-label="Show transactions by">'+PERS.map(function(x){return '<option value="'+x[0]+'"'+(U.per===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>':'';
+    var ep=effPer(),pv=(v==='overview'||v==='tx')?'<select id="per-sel" class="persel" aria-label="Show transactions by">'+PERS.map(function(x){return '<option value="'+x[0]+'"'+(U.per===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>':(v==='reports'?'<select id="r-period" class="persel" aria-label="Period">'+PERIODS.map(function(p){return '<option value="'+p[0]+'"'+(U.r.period===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select>':'');
     if(rg)h+=pv+'<div class="month"><b class="rlab">'+esc(rangeLabel(rg[0],rg[1]))+'</b></div>';
     else{
       var nr=perOf(ep,ep==='month'?U.ym+'-01':U.pd),nm=ep==='day'?'day':ep;
-      h+=pv+'<div class="month"><button class="ib" data-a="prev" aria-label="Previous '+nm+'">'+I.left+'</button><button class="pl" data-a="today" title="Go to the current '+nm+'" aria-label="'+esc(ep==='month'?ymLabel(U.ym):perLabel())+'. Go to the current '+nm+'">'+esc(ep==='month'?ymLabel(U.ym):perLabel())+'</button><button class="ib" data-a="next" aria-label="Next '+nm+'"'+(fwdOk(nr)?'':' disabled')+'>'+I.right+'</button></div>';
+      var fullLab=ep==='month'?ymLabel(U.ym):perLabel(),shortLab=ep==='month'?ymLabelShort(U.ym):navLabel(ep,ep==='month'?U.ym+'-01':U.pd);
+      h+=pv+'<div class="month"><button class="ib" data-a="prev" aria-label="Previous '+nm+'">'+I.left+'</button><button class="pl" data-a="today" title="Go to the current '+nm+'" aria-label="'+esc(fullLab)+'. Go to the current '+nm+'">'+esc(shortLab)+'</button><button class="ib" data-a="next" aria-label="Next '+nm+'"'+(fwdOk(nr)?'':' disabled')+'>'+I.right+'</button></div>';
     }
   }
   h+='<button class="ib mob addfab" data-a="add" aria-label="New transaction">'+I.plus+'</button>';
