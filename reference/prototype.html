@@ -129,6 +129,7 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 .card h2{margin:0;font:700 16px var(--f-display);letter-spacing:-.005em}
 .card .sub{margin:2px 0 12px;color:var(--muted);font-size:13px}
 .chd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px}
+.chdl{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
 .lnk{color:var(--accent);font-weight:600;font-size:13px}
 .g{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
 .lab{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:block}
@@ -332,7 +333,7 @@ button.lg:hover span,button.cbr:hover .nm{text-decoration:underline}
 .tabs{display:grid;grid-template-columns:repeat(6,1fr);align-items:center;border-top:1px solid var(--line);background:var(--surface);padding-block:6px 8px}
 .tabs button.t{display:grid;justify-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--muted);padding:4px 0;min-width:0}
 .tabs button.t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.tabs button.t .ti{display:grid;place-items:center;width:44px;height:26px;border-radius:14px;transition:background-color .15s ease}
+.tabs button.t .ti{display:grid;place-items:center;width:44px;height:26px;border-radius:10px;transition:background-color .15s ease}
 .tabs button.t.on{color:var(--accent)}
 .tabs button.t.on .ti{background:color-mix(in srgb,var(--accent) 18%,transparent)}
 
@@ -1542,20 +1543,20 @@ var PIVOTS=[['expense','Expense'],['flow','Cash Flow'],['budget','Budget'],['acc
 function pivotAccountBalancesHTML(count){
   if(!S.accounts.length)return '';
   var rows=orderedAccounts().map(function(a){var b=bal(a);return '<button class="arow" data-a="accFilter" data-v="'+a.id+'"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button>'}).join('');
-  return '<section class="card sumcard"><div class="chd"><h2>Accounts</h2><button class="lnk" data-a="tab" data-v="accounts">All accounts</button></div>'+(count||'')+rows+'</section>';
+  return '<section class="card sumcard"><div class="chd"><div class="chdl"><h2>Accounts</h2>'+(count||'')+'</div><button class="lnk" data-a="tab" data-v="accounts">All accounts</button></div>'+rows+'</section>';
 }
 function txSummaryHTML(pivot){
   var f=U.f,l=filtered(),lr=l.filter(function(t){return !t.up}),nUp=l.length-lr.length,selectedAccount=ledgerAcc()?acct(ledgerAcc()):null;
-  var count='<p class="sub">'+lr.length+' transaction'+(lr.length===1?'':'s')+(nUp?' · '+nUp+' upcoming':'')+'</p>';
+  var count='<span class="sub" style="margin:0">'+lr.length+' transaction'+(lr.length===1?'':'s')+(nUp?' · '+nUp+' upcoming':'')+'</span>';
   if(selectedAccount){
-    return '<section class="card sumcard"><div class="chd"><h2>'+esc(selectedAccount.name)+'</h2></div>'+count+'<div class="arow static"><span>Current balance</span><b class="num '+(bal(selectedAccount)<0?'neg':'pos')+'">'+money(bal(selectedAccount),selectedAccount.cur)+'</b></div></section>';
+    return '<section class="card sumcard"><div class="chd"><div class="chdl"><h2>'+esc(selectedAccount.name)+'</h2>'+count+'</div></div><div class="arow static"><span>Current balance</span><b class="num '+(bal(selectedAccount)<0?'neg':'pos')+'">'+money(bal(selectedAccount),selectedAccount.cur)+'</b></div></section>';
   }
   if(pivot==='account')return pivotAccountBalancesHTML(count);
   if(pivot==='budget'){
     var sp={};lr.forEach(function(t){if(t.type==='exp')sp[t.cat]=(sp[t.cat]||0)+bv(t)});
     var tb=0,ts=0;Object.keys(S.budgets||{}).forEach(function(c){var lim=Number(S.budgets[c])||0;if(lim>0){tb+=lim;ts+=sp[c]||0}});
     var remain=tb-ts;
-    return '<section class="card sumcard"><div class="chd"><h2>Budget</h2><button class="lnk" data-a="tab" data-v="budgets">Budget settings</button></div>'+count+
+    return '<section class="card sumcard"><div class="chd"><div class="chdl"><h2>Budget</h2>'+count+'</div><button class="lnk" data-a="tab" data-v="budgets">Budget settings</button></div>'+
       '<div class="arow static"><span>Budget</span>'+(tb>0?'<b class="num">'+fmt(tb)+'</b>':'<button class="lnk" data-a="tab" data-v="budgets">Click to set budget</button>')+'</div>'+
       '<div class="arow static"><span>Expense</span><b class="num neg">'+fmt(ts)+'</b></div>'+
       '<div class="arow static"><span>Balance</span>'+(tb>0?'<b class="num '+(remain<0?'neg':'pos')+'">'+(remain<0?'−':'+')+fmt(Math.abs(remain))+'</b>':'<b class="num" style="color:var(--muted)">No record</b>')+'</div></section>';
@@ -1564,13 +1565,13 @@ function txSummaryHTML(pivot){
     var exps=lr.filter(function(t){return t.type==='exp'}),tot=sum(exps,'exp');
     var rg=f.range?[f.range.from,f.range.to]:perOf(),days=Math.max(1,dayDiff(rg[0],rg[1])+1),daily=tot/days;
     var top=exps.slice().sort(function(a,b){return bv(b)-bv(a)})[0];
-    return '<section class="card sumcard"><div class="chd"><h2>Expense</h2><button class="lnk" data-a="focusSearch">Search</button></div>'+count+
+    return '<section class="card sumcard"><div class="chd"><div class="chdl"><h2>Expense</h2>'+count+'</div><button class="lnk" data-a="focusSearch">Search</button></div>'+
       '<div class="arow static"><span>Expense</span><b class="num neg">'+fmt(tot)+'</b></div>'+
       '<div class="arow static"><span>Daily expense</span><b class="num neg">'+fmt(daily)+'</b></div>'+
       '<div class="arow static"><span>Top expense</span>'+(top?'<b class="num neg">'+esc(catText(top))+' '+fmt(bv(top))+'</b>':'<b class="num" style="color:var(--muted)">None</b>')+'</div></section>';
   }
   var tn=sum(lr,'inc')-sum(lr,'exp');
-  return '<section class="card sumcard"><div class="chd"><h2>Cash Flow</h2><button class="lnk" data-a="tab" data-v="reports">Reports</button></div>'+count+
+  return '<section class="card sumcard"><div class="chd"><div class="chdl"><h2>Cash Flow</h2>'+count+'</div><button class="lnk" data-a="tab" data-v="reports">Reports</button></div>'+
     '<div class="arow static"><span>Income</span><b class="num pos">+'+fmt(sum(lr,'inc'))+'</b></div>'+
     '<div class="arow static"><span>Expense</span><b class="num neg">−'+fmt(sum(lr,'exp'))+'</b></div>'+
     '<div class="arow static"><span>Balance</span><b class="num '+(tn<0?'neg':'pos')+'">'+(tn<0?'−':'+')+fmt(Math.abs(tn))+'</b></div></section>';
