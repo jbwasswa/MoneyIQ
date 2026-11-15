@@ -1,5 +1,5 @@
 """Rebuilds the web test page and the desktop app page from the prototype source plus the core."""
-import base64,re,subprocess,sys
+import base64,json,re,subprocess,sys
 R='/home/claude/pocket-ledger-desktop'
 SRC=R+'/reference/prototype.html'
 ES=R+'/app/node_modules/.bin/esbuild'
@@ -7,6 +7,8 @@ subprocess.run([ES,'src/bridge.ts','--bundle','--format=iife','--global-name=PLC
 subprocess.run([ES,'src/native.ts','--bundle','--platform=node','--format=cjs','--outfile=../desktop-app/src/core-native.cjs','--log-level=error'],cwd=R+'/core',check=True)
 h=open(SRC).read()
 h=h.replace('var LU={};/*LUCIDE_DATA*/',open(R+'/reference/lucide-data.js').read(),1)
+APP_VERSION=json.load(open(R+'/desktop-app/package.json'))['version']
+h=h.replace('__APP_VERSION__',APP_VERSION,1)
 def rep(s,a,b):
     assert a in s,a[:60]; return s.replace(a,b,1)
 old="function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&o.tx&&o.accounts&&o.cats&&o.currencies)return o}}catch(e){}return null}\nfunction save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}"
