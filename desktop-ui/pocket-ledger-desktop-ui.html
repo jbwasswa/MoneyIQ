@@ -1782,11 +1782,17 @@ function reportsHTML(){
   }
   var seg=function(arr,key,c){return '<div class="seg">'+arr.map(function(x){return '<button class="'+(c===x[0]?'on':'')+'" data-a="rset" data-v="'+key+':'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div>'};
   var chips=rptChips();
-  var ctl='<div class="toolbar" style="justify-content:space-between">'+seg([['exp','Expense'],['inc','Income'],['flow','Cash flow']],'type',typ)+'</div>'+
-    '<div class="toolbar">'+
+  var ctl='<div class="toolbar" style="justify-content:space-between">'+seg([['exp','Expense'],['inc','Income'],['flow','Cash flow']],'type',typ)+
+    '<div class="toolbar" style="margin:0">'+
     (r.period==='custom'?dateInput('r-from',rg[0],'From')+dateInput('r-to',rg[1],'To'):'')+
     (flow?'':'<select id="r-grp" aria-label="Group by">'+[['cat','Group by category'],['sub','Group by subcategory'],['acc','Group by account'],['proj','Group by project'],['payee','Group by payee']].map(function(g){return '<option value="'+g[0]+'"'+(r.grp===g[0]?' selected':'')+'>'+g[1]+'</option>'}).join('')+'</select>')+
-    '<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(r.open?'Hide filters':'Filters')+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button></div>';
+    '<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(r.open?'Hide filters':'Filters')+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button></div></div>';
+  var periodCtl='<div class="toolbar" style="gap:8px;align-items:center">'+
+    '<select id="r-period" class="persel" aria-label="Period">'+PERIODS.map(function(p){return '<option value="'+p[0]+'"'+(r.period===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select>'+
+    (r.period==='month'?
+      '<div class="month"><button class="ib" data-a="prev" aria-label="Previous month">'+I.left+'</button><button class="pl" data-a="today" title="Go to the current month" aria-label="'+esc(ymLabel(U.ym))+'. Go to the current month">'+esc(ymLabelShort(U.ym))+'</button><button class="ib" data-a="next" aria-label="Next month"'+(fwdOk(perOf('month',U.ym+'-01'))?'':' disabled')+'>'+I.right+'</button></div>'
+      :'<div class="month"><b class="rlab">'+esc(rangeLabel(rg[0],rg[1]))+'</b></div>')+
+    '</div>';
   var pay=payeeList();
   var panel=r.open?'<section class="card fp"><div class="fgrid">'+
     '<div class="mfw">Account<span></span>'+reportMultiFilter('Accounts','accounts',S.accounts)+'</div>'+
@@ -1795,7 +1801,7 @@ function reportsHTML(){
     '<div class="mfw">Payee or payer<span></span>'+msel('r','payees','All payees',pay.map(function(x){return {id:x,name:x}}).concat([{id:'-',name:'No payee'}]),fPayees(r.f))+'</div>'+
     '<div class="mfw">Currency<span></span>'+msel('r','curs','All currencies',S.currencies.map(function(c){return {id:c.code,name:c.code}}),fCurs(r.f))+'</div></div>'+(chips.length?'<button class="lnk" data-a="rclearAll" style="justify-self:start">Clear all filters</button>':'')+'</section>':'';
   var chipRow=chips.length?'<div class="toolbar">'+chips.map(function(c){return '<button class="pill x" data-a="rclear" data-v="'+c[0]+'">'+esc(c[1])+I.x+'</button>'}).join('')+'</div>':'';
-  return '<div class="wrap">'+sampleBanner()+ctl+panel+chipRow+'<p class="rnote">'+esc(rangeLabel(rg[0],rg[1]))+' · amounts in '+esc(S.base)+(r.period==='month'?' · use the arrows at the top to change month':'')+'</p>'+
+  return '<div class="wrap">'+sampleBanner()+ctl+panel+chipRow+periodCtl+'<p class="rnote">Amounts in '+esc(S.base)+(r.period==='month'?' · use the arrows above to change month':'')+'</p>'+
     '<div class="kpis">'+stats.map(function(s){return '<div class="stat"><span class="lab">'+s[0]+'</span><b class="num '+s[2]+'">'+s[1]+'</b></div>'}).join('')+'</div>'+
     '<div class="g"><section class="card"><div class="chd"><h2>'+chartTitle+'</h2>'+seg([['pie','Pie'],['bar','Bar'],['trend','Trend']],'chart',r.chart)+'</div><p class="sub">'+(flow?'Income and expense':word.charAt(0).toUpperCase()+word.slice(1))+'</p>'+chartHTML+'</section><section class="card">'+detail+'</section></div></div>';
 }
@@ -2214,10 +2220,10 @@ function renderTop(){
   var v=U.view,subv=!!SUBV[v];
   var scAcc=v==='tx'?scopedAccId():'';
   var back=v==='accorder'?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':subv?'<button class="ib" data-a="tab" data-v="settings" aria-label="Back to Settings">'+I.left+'</button>':(scAcc?'<button class="ib" data-a="tab" data-v="accounts" aria-label="Back to Accounts">'+I.left+'</button>':(v==='settings'?'':'<button class="ib mob" data-a="tab" data-v="settings" aria-label="Settings">'+ico('lu:settings',22)+'</button>'));
-  var h=back+'<h1 class="'+(MONTHLY[v]&&!subv?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
+  var h=back+'<h1 class="'+(MONTHLY[v]&&!subv&&v!=='reports'?'hm':'')+'">'+(scAcc?esc((acct(scAcc)||{}).name||TITLES[v]):TITLES[v])+'</h1>';
   var rg=(v==='tx'&&U.f.range)?[U.f.range.from,U.f.range.to]:(v==='reports'&&U.r.period!=='month')?rptRange():null;
-  if(MONTHLY[v]){
-    var ep=effPer(),pv=(v==='overview'||v==='tx')?'<select id="per-sel" class="persel" aria-label="Show transactions by">'+PERS.map(function(x){return '<option value="'+x[0]+'"'+(U.per===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>':(v==='reports'?'<select id="r-period" class="persel" aria-label="Period">'+PERIODS.map(function(p){return '<option value="'+p[0]+'"'+(U.r.period===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select>':'');
+  if(MONTHLY[v]&&v!=='reports'){
+    var ep=effPer(),pv=(v==='overview'||v==='tx')?'<select id="per-sel" class="persel" aria-label="Show transactions by">'+PERS.map(function(x){return '<option value="'+x[0]+'"'+(U.per===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>':'';
     if(rg)h+=pv+'<div class="month"><b class="rlab">'+esc(rangeLabel(rg[0],rg[1]))+'</b></div>';
     else{
       var nr=perOf(ep,ep==='month'?U.ym+'-01':U.pd),nm=ep==='day'?'day':ep;
