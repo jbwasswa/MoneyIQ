@@ -1788,9 +1788,9 @@ function reportsHTML(){
   var chips=rptChips();
   var grpOrDate=(r.period==='custom'?dateInput('r-from',rg[0],'From')+dateInput('r-to',rg[1],'To'):'')+
     (flow?'':'<select id="r-grp" aria-label="Group by">'+[['cat','Group by category'],['sub','Group by subcategory'],['acc','Group by account'],['proj','Group by project'],['payee','Group by payee']].map(function(g){return '<option value="'+g[0]+'"'+(r.grp===g[0]?' selected':'')+'>'+g[1]+'</option>'}).join('')+'</select>');
+  var filterBtn='<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(r.open?'Hide filters':'Filters')+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button>';
   var ctl='<div class="toolbar" style="justify-content:space-between">'+seg([['exp','Expense'],['inc','Income'],['flow','Cashflow']],'type',typ)+
-    '<button class="pill fbtn'+(r.open?' on':'')+'" data-a="rtoggle" aria-expanded="'+(r.open?'true':'false')+'" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:funnel',16)+(r.open?'Hide filters':'Filters')+(chips.length?'<span class="cnt">'+chips.length+'</span>':'')+'</button></div>'+
-    (grpOrDate?'<div class="toolbar" style="margin:0">'+grpOrDate+'</div>':'');
+    (grpOrDate?'<div class="toolbar" style="margin:0">'+grpOrDate+filterBtn+'</div>':filterBtn)+'</div>';
   var periodCtl='<div class="toolbar" style="gap:8px;align-items:center">'+
     '<select id="r-period" class="persel" aria-label="Period">'+PERIODS.map(function(p){return '<option value="'+p[0]+'"'+(r.period===p[0]?' selected':'')+'>'+p[1]+'</option>'}).join('')+'</select>'+
     (r.period==='month'?
