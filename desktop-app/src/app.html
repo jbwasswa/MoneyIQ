@@ -1099,7 +1099,7 @@ function save(){
       else localStorage.setItem(CORE_KEY,JSON.stringify(c.book))}
     else{console.warn('Rumbo core check failed; kept the previous saved copy',c.result.problems);plBanner('Your last change was not saved because it did not pass the data checks ('+c.result.problems[0]+'). It is on screen only.')}}
   catch(e){window.PL_CHECK={ok:false,problems:[String(e)]};plBanner('Your last change could not be saved ('+e+').')}}
-var APP_VERSION='0.7.16';
+var APP_VERSION='0.7.17';
 var S=load()||seed();
 if(!Array.isArray(S.payees))S.payees=[];
 if(!Array.isArray(S.payers))S.payers=[];
@@ -1574,7 +1574,7 @@ function overviewHTML(){
   var cats=exp?'<div class="dn">'+donutSVG(top,exp)+'<div class="lgd">'+top.map(function(it){return '<div class="lg">'+dotHTML(it.color,it.icon,'xs')+'<span>'+esc(it.name)+'</span><em class="num">'+fmt(it.v)+' · '+Math.round(it.v/exp*100)+'%</em></div>'}).join('')+'</div></div>':'<div class="empty">No expenses in '+esc(perLabel())+'.</div>';
   var yms=[];for(var i=5;i>=0;i--)yms.push(shiftFrom(U.ym,-i));
   var br=budgetRows(4,true);
-  var buds=br.length?br.map(function(x){var r=x.s/x.b;return '<button class="bmini" data-a="tab" data-v="budgets"><div class="h">'+dotHTML(x.c.color,x.c.icon,'xs')+'<b style="font-weight:600">'+esc(x.c.name)+'</b><span class="num" style="color:var(--muted)">'+fmt(x.s)+' / '+fmt(x.b)+'</span></div><div class="track '+(r>1?'over':r>.8?'warn':'')+'"><i style="width:'+Math.min(100,r*100).toFixed(1)+'%"></i></div></button>'}).join(''):'<div class="empty">No budgets set yet.</div>';
+  var buds=br.length?br.map(function(x){var r=x.s/x.b;return '<button class="bmini" data-a="tab" data-v="budgets"><div class="h">'+dotHTML(x.c.color,x.c.icon,'xs')+'<b style="font-weight:600">'+esc(x.c.name)+'</b><span class="num" style="color:var(--muted)">'+fmt(x.s)+' / '+fmt(x.b)+'</span></div><div class="track '+(r>=1?'over':r>.8?'warn':'')+'"><i style="width:'+Math.min(100,r*100).toFixed(1)+'%"></i></div></button>'}).join(''):'<div class="empty">No budgets set yet.</div>';
   var recent=m.slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id}).slice(0,6);
   var secs={
     pace:paceHTML(),
@@ -1815,7 +1815,7 @@ function budgetsHTML(){
   var rows=budgetRows(),configured=rows.filter(function(x){return x.b>0}),tb=configured.reduce(function(s,x){return s+x.b},0),ts=configured.reduce(function(s,x){return s+x.s},0);
   var cards=rows.map(function(x){
     var r=x.b?x.s/x.b:0,detail=x.b?(r>1?fmt(x.s-x.b)+' over budget':fmt(x.b-x.s)+' left · '+Math.round(r*100)+'% used')+(S.budgetMode[x.c.id]==='stop'?' · Stops overspending':S.budgetMode[x.c.id]==='warn'?' · Warns on overspend':''):(x.s?fmt(x.s)+' spent · no limit set':'No budget set yet');
-    return '<button class="bud" data-a="editBud" data-v="'+x.c.id+'"><div class="h">'+dotHTML(x.c.color,x.c.icon,'sm')+'<b>'+esc(x.c.name)+'</b><span class="num">'+(x.b?fmt(x.s)+' / '+fmt(x.b):'Set monthly limit')+'</span></div>'+(x.b?'<div class="track '+(r>1?'over':r>.8?'warn':'')+'"><i style="width:'+Math.min(100,r*100).toFixed(1)+'%"></i></div>':'<div class="track"><i style="width:0%"></i></div>')+'<small>'+detail+'</small></button>';
+    return '<button class="bud" data-a="editBud" data-v="'+x.c.id+'"><div class="h">'+dotHTML(x.c.color,x.c.icon,'sm')+'<b>'+esc(x.c.name)+'</b><span class="num">'+(x.b?fmt(x.s)+' / '+fmt(x.b):'Set monthly limit')+'</span></div>'+(x.b?'<div class="track '+(r>=1?'over':r>.8?'warn':'')+'"><i style="width:'+Math.min(100,r*100).toFixed(1)+'%"></i></div>':'<div class="track"><i style="width:0%"></i></div>')+'<small>'+detail+'</small></button>';
   }).join('');
   return '<div class="wrap"><div class="kpis"><div class="kpi hero"><span class="lab">Spent against budgets</span><strong class="kv num">'+S.base+' '+fmt(ts)+'</strong><span class="kd">of '+S.base+' '+fmt(tb)+' budgeted in '+monName(U.ym)+'</span></div><div class="kpi"><span class="lab">Remaining</span><strong class="kv num '+(tb-ts<0?'neg':'')+'">'+(tb-ts<0?'−':'')+S.base+' '+fmt(Math.abs(tb-ts))+'</strong><span class="kd">'+(tb?Math.round(ts/tb*100)+'% used overall':'No budgets configured yet')+'</span></div></div>'+
     '<p class="sub">All configured expense categories are listed below, including categories without a monthly limit. Select any category to set or change its budget. A category budget covers all its subcategories.</p>'+
