@@ -202,11 +202,20 @@ kbd{font:600 11px var(--f-body);border:1px solid currentColor;border-radius:5px;
 .kpi.hero .lab,.kpi.hero .kd{color:inherit;opacity:.82}
 .dg{color:var(--inc);font-weight:600} .db{color:var(--exp);font-weight:600}
 .kpi.hero .dg,.kpi.hero .db{color:inherit}
+.kpi.addkpi{display:none}
 @media(max-width:899px){
+  .kpis.cardsm{grid-template-columns:1fr 1fr}
   .kpis.cardsm .kpi{padding:10px 12px;gap:1px}
   .kpis.cardsm .kpi .lab{font-size:10.5px}
   .kpis.cardsm .kpi .kv{font-size:19px;order:3}
   .kpis.cardsm .kpi .kd{font-size:11px;order:2;margin-top:1px}
+  .kpis.cardsm.ov .kpi:nth-child(1){order:3}
+  .kpis.cardsm.ov .kpi:nth-child(2){order:1}
+  .kpis.cardsm.ov .kpi:nth-child(3){order:2}
+  .kpis.cardsm.ov .kpi:nth-child(4){order:4}
+  .kpi.addkpi{display:grid!important;place-items:center;gap:6px;border:1px dashed var(--muted);background:transparent;color:var(--accent);font:600 13px var(--f-body,inherit);cursor:pointer}
+  .kpi.addkpi:hover{background:var(--surface)}
+  .kpi.addkpi svg{width:20px;height:20px}
 }
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .stat b{display:block;font:700 18px var(--f-display);overflow-wrap:anywhere}
@@ -1554,7 +1563,7 @@ function overviewHTML(){
     accounts:'<section class="card"><div class="chd"><h2>Accounts</h2><button class="lnk" data-a="tab" data-v="accounts">All accounts</button></div>'+orderedAccounts().slice(0,8).map(function(a){var b=bal(a);return '<button class="arow" data-a="accFilter" data-v="'+a.id+'"><span class="akind" style="gap:10px">'+atypeIcon(a.kind,18)+esc(a.name)+'</span><b class="num '+(b<0?'neg':b>0?'pos':'')+'">'+money(b,a.cur)+'</b></button>'}).join('')+'<div class="arow" style="border-top:1px solid var(--line);border-bottom:0;font-weight:600"><span>Total in '+esc(S.base)+'</span><b class="num">'+fmt(totalBal())+'</b></div></section>'
   };
   return '<div class="wrap">'+sampleBanner()+tipBanner()+backupNudge()+
-    '<div class="kpis cardsm">'+kpi('Net '+PNOUN,(net<0?'−':'')+S.base+' '+fmt(Math.abs(net)),delta(net,pnet,true,pl),net<0?'hero bad':net>0?'hero good':'hero')+kpi('Income',S.base+' '+fmt(inc),delta(inc,pinc,true,pl),'tin')+kpi('Expense',S.base+' '+fmt(exp),delta(exp,pexp,false,pl),'tout')+kpi('Savings rate',inc>0?rate+'%':'—',inc>0&&pinc>0?(rate>=prate?'<span class="dg">↑ ':'<span class="db">↓ ')+Math.abs(rate-prate)+' pts</span> vs '+pl:'No data for '+pl,inc>0&&net>0?'tin':inc>0&&net<0?'tout':'')+'</div>'+
+    '<div class="kpis cardsm ov">'+kpi('Net '+PNOUN,(net<0?'−':'')+S.base+' '+fmt(Math.abs(net)),delta(net,pnet,true,pl),net<0?'hero bad':net>0?'hero good':'hero')+kpi('Income',S.base+' '+fmt(inc),delta(inc,pinc,true,pl),'tin')+kpi('Expense',S.base+' '+fmt(exp),delta(exp,pexp,false,pl),'tout')+kpi('Savings rate',inc>0?rate+'%':'—',inc>0&&pinc>0?(rate>=prate?'<span class="dg">↑ ':'<span class="db">↓ ')+Math.abs(rate-prate)+' pts</span> vs '+pl:'No data for '+pl,inc>0&&net>0?'tin':inc>0&&net<0?'tout':'')+'</div>'+
     '<div class="g ovg c'+ovCols()+'">'+ovSections().map(function(k){return secs[k]}).join('')+'</div></div>';
 }
 function catOptions(sel,types){
@@ -1834,12 +1843,12 @@ function accountsHTML(){
   }).join('');
   var T=totals(),nA=0,nL=0,nX=S.accounts.length-T.count,kv=function(v,neg){return (neg?'−':'')+'<span class="kcur">'+esc(S.base)+'</span> '+fmt(v)};
   S.accounts.forEach(function(a){if(!inTot(a))return;var v=bal(a);if(v>0)nA++;else if(v<0)nL++});
-  var kp='<div class="kpis cardsm"><div class="kpi tin"><span class="lab">Total assets</span><strong class="kv num">'+kv(T.a)+'</strong><span class="kd">'+nA+' Account'+(nA===1?'':'s')+'</span></div><div class="kpi tout"><span class="lab">Total liabilities</span><strong class="kv num">'+kv(T.l)+'</strong><span class="kd">'+nL+' Account'+(nL===1?'':'s')+'</span></div><div class="kpi hero'+(T.n>0?' good':T.n<0?' bad':'')+'"><span class="lab">Balance</span><strong class="kv num">'+kv(Math.abs(T.n),T.n<0)+'</strong><span class="kd">Net Position'+(nX?' · '+nX+' account'+(nX===1?'':'s')+' left out':'')+'</span></div></div>';
+  var kp='<div class="kpis cardsm acc"><div class="kpi tin"><span class="lab">Total assets</span><strong class="kv num">'+kv(T.a)+'</strong><span class="kd">'+nA+' Account'+(nA===1?'':'s')+'</span></div><div class="kpi tout"><span class="lab">Total liabilities</span><strong class="kv num">'+kv(T.l)+'</strong><span class="kd">'+nL+' Account'+(nL===1?'':'s')+'</span></div><div class="kpi hero'+(T.n>0?' good':T.n<0?' bad':'')+'"><span class="lab">Balance</span><strong class="kv num">'+kv(Math.abs(T.n),T.n<0)+'</strong><span class="kd">Net Position'+(nX?' · '+nX+' account'+(nX===1?'':'s')+' left out':'')+'</span></div><button class="kpi addkpi only-mob" data-a="addAcc">'+I.plus+'<span>Add account</span></button></div>';
   var incl=orderedAccounts().filter(inTot),excl=orderedAccounts().filter(function(a){return !inTot(a)});
   var listRows=incl.map(accRowHTML).join('')+(excl.length?'<div class="seclabel">Not included in totals</div>'+excl.map(accRowHTML).join(''):'');
   var mobList=S.accounts.length?'<section class="card only-mob" style="padding:4px 18px">'+listRows+'</section>':'';
   var reorderBtn=S.accounts.length>1?'<div class="toolbar" style="justify-content:flex-end"><button class="lnk" data-a="tab" data-v="accorder" style="display:inline-flex;align-items:center;gap:6px">'+ico('lu:arrow-up-down',16)+'Reorder</button></div>':'';
-  return '<div class="wrap">'+kp+reorderBtn+mobList+'<div class="g mob-hide">'+cards+'</div>'+loanCards()+'<button class="btn ghost" data-a="addAcc" style="align-self:flex-start">Add account</button></div>';
+  return '<div class="wrap">'+kp+reorderBtn+mobList+'<div class="g mob-hide">'+cards+'</div>'+loanCards()+'<button class="btn ghost mob-hide" data-a="addAcc" style="align-self:flex-start">Add account</button></div>';
 }
 function rateDec(r){return r>=100?0:r>=1?2:4}
 function categoriesHTML(){
