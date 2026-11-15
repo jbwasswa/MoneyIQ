@@ -64,10 +64,14 @@ async function boot() {
       },
     }),
   };
-  // Phone back button: close what is open, then go to Overview, then leave the app.
+  // Phone back button: close what is open, then follow the same back-navigation
+  // the on-screen back button (top-left, "Back to Accounts"/"Back to Settings") would,
+  // then go to Overview, then leave the app.
   App.addListener('backButton', () => {
     const open = ['#dlg', '#sheet'].some(s => { const e = document.querySelector(s); return e && !e.hidden; });
     if (open) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return; }
+    const backBtn = document.querySelector('#top [data-a="tab"][aria-label^="Back to"]');
+    if (backBtn) { backBtn.click(); return; }
     const home = document.querySelector('[data-a="tab"][data-v="overview"]');
     const onHome = home && /\bon\b|active|current/.test(home.className + ' ' + (home.getAttribute('aria-current') || ''));
     if (home && !onHome) { home.click(); return; }
