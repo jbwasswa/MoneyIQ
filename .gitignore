@@ -5,3 +5,4 @@ android-app/android/app/build/
 android-app/android/build/
 android-app/android/.gradle/
 android-app/android/local.properties
+Rumbo-source-0.9.0/android-app/android/app/rumbo-debug.keystore
