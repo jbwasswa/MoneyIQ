@@ -5,6 +5,8 @@ on:
       - 'Rumbo-source-0.8.0/**'
       - '.github/workflows/rumbo-android.yml'
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -26,6 +28,15 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
+      - name: Commit APK to build branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/codex/rumbo-0.8.0-apk'
+        run: |
+          cp Rumbo-source-0.8.0/android-app/android/app/build/outputs/apk/debug/app-debug.apk Rumbo-0.8.0-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Rumbo-0.8.0-debug.apk
+          git commit -m "Add Rumbo 0.8.0 debug APK"
+          git push
       - uses: actions/upload-artifact@v4
         with:
           name: rumbo-0.8.0-debug-apk
