@@ -1,0 +1,44 @@
+name: Rumbo 0.9.2 Android APK
+on:
+  push:
+    paths:
+      - 'Rumbo-source-0.9.2/**'
+      - '.github/workflows/rumbo-0.9.2-android.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: 21 }
+      - name: Accept Android licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Install and sync
+        working-directory: Rumbo-source-0.9.2/android-app
+        run: |
+          npm ci
+          npx cap sync android
+      - name: Build debug APK
+        working-directory: Rumbo-source-0.9.2/android-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - name: Commit APK and ZIP to build branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/codex/rumbo-0.9.2-apk'
+        run: |
+          cp Rumbo-source-0.9.2/android-app/android/app/build/outputs/apk/debug/app-debug.apk Rumbo-0.9.2-debug.apk
+          zip -j Rumbo-0.9.2-debug.zip Rumbo-0.9.2-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f Rumbo-0.9.2-debug.apk Rumbo-0.9.2-debug.zip
+          git commit -m "Add Rumbo 0.9.2 debug APK"
+          git push
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rumbo-0.9.2-debug-apk
+          path: Rumbo-source-0.9.2/android-app/android/app/build/outputs/apk/debug/app-debug.apk
