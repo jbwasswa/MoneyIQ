@@ -23,11 +23,18 @@ jobs:
         run: |
           npm ci
           npx cap sync android
-      - name: Build debug APK
+      - name: Gradle debug signing report
         working-directory: Rumbo-source-0.10.2/android-app/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew signingReport
+      - name: Build debug APK
+        working-directory: Rumbo-source-0.10.2/android-app/android
+        run: ./gradlew assembleDebug
+      - name: Verify debug APK certificate
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify --print-certs Rumbo-source-0.10.2/android-app/android/app/build/outputs/apk/debug/app-debug.apk
       - name: Commit APK and ZIP to build branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/codex/rumbo-0.10.2-apk'
         run: |
