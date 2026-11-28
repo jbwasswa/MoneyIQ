@@ -1,17 +1,3 @@
-Downloading https://services.gradle.org/distributions/gradle-8.14.3-all.zip
-.....................10%.....................20%......................30%.....................40%......................50%.....................60%.....................70%......................80%.....................90%......................100%
-
-Welcome to Gradle 8.14.3!
-
-Here are the highlights of this release:
- - Java 24 support
- - GraalVM Native Image toolchain selection
- - Enhancements to test reporting
- - Build Authoring improvements
-
-For more details see https://docs.gradle.org/8.14.3/release-notes.html
-
-Starting a Gradle Daemon (subsequent builds will be faster)
 
 > Configure project :app
 WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
@@ -24,7 +10,10 @@ Variant: debug
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 Variant: release
 Config: null
@@ -35,7 +24,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-android:signingReport
@@ -43,7 +35,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-app:signingReport
@@ -51,7 +46,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-cordova-android-plugins:signingReport
@@ -59,7 +57,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-device:signingReport
@@ -67,7 +68,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-filesystem:signingReport
@@ -75,7 +79,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-local-notifications:signingReport
@@ -83,7 +90,10 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
 > Task :capacitor-share:signingReport
@@ -91,8 +101,11 @@ Variant: debugAndroidTest
 Config: debug
 Store: /home/runner/.config/.android/debug.keystore
 Alias: AndroidDebugKey
-Error: Missing keystore
+MD5: C6:3D:0F:03:D7:A6:95:CD:63:3A:21:9B:13:06:46:D8
+SHA1: 13:77:32:23:DD:04:30:BE:B8:55:04:53:CF:63:76:7E:10:E5:44:7E
+SHA-256: A6:25:2B:15:C6:79:3D:02:B6:45:B8:73:F3:2A:9F:62:F9:43:82:43:E9:AB:11:97:BC:1E:13:8C:16:B5:C1:5F
+Valid until: Monday, November 20, 2056
 ----------
 
-BUILD SUCCESSFUL in 49s
+BUILD SUCCESSFUL in 1s
 8 actionable tasks: 8 executed
