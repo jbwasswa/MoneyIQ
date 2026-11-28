@@ -27,14 +27,14 @@ jobs:
         working-directory: Rumbo-source-0.10.2/android-app/android
         run: |
           chmod +x gradlew
-          ./gradlew signingReport
+          ./gradlew signingReport | tee ../../../Rumbo-0.10.2-signing-report.txt
       - name: Build debug APK
         working-directory: Rumbo-source-0.10.2/android-app/android
         run: ./gradlew assembleDebug
       - name: Verify debug APK certificate
         run: |
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
-          "$APKSIGNER" verify --print-certs Rumbo-source-0.10.2/android-app/android/app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify --print-certs Rumbo-source-0.10.2/android-app/android/app/build/outputs/apk/debug/app-debug.apk | tee Rumbo-0.10.2-apksigner-report.txt
       - name: Commit APK and ZIP to build branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/codex/rumbo-0.10.2-apk'
         run: |
@@ -42,7 +42,7 @@ jobs:
           zip -j Rumbo-0.10.2-debug.zip Rumbo-0.10.2-debug.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f Rumbo-0.10.2-debug.apk Rumbo-0.10.2-debug.zip
+          git add -f Rumbo-0.10.2-debug.apk Rumbo-0.10.2-debug.zip Rumbo-0.10.2-signing-report.txt Rumbo-0.10.2-apksigner-report.txt
           git commit -m "Add Rumbo 0.10.2 debug APK"
           git push
       - uses: actions/upload-artifact@v4
