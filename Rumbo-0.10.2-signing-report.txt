@@ -1,0 +1,98 @@
+Downloading https://services.gradle.org/distributions/gradle-8.14.3-all.zip
+.....................10%.....................20%......................30%.....................40%......................50%.....................60%.....................70%......................80%.....................90%......................100%
+
+Welcome to Gradle 8.14.3!
+
+Here are the highlights of this release:
+ - Java 24 support
+ - GraalVM Native Image toolchain selection
+ - Enhancements to test reporting
+ - Build Authoring improvements
+
+For more details see https://docs.gradle.org/8.14.3/release-notes.html
+
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :app:signingReport
+Variant: debug
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+Variant: release
+Config: null
+Store: null
+Alias: null
+----------
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-android:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-app:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-cordova-android-plugins:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-device:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-filesystem:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-local-notifications:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+> Task :capacitor-share:signingReport
+Variant: debugAndroidTest
+Config: debug
+Store: /home/runner/.config/.android/debug.keystore
+Alias: AndroidDebugKey
+Error: Missing keystore
+----------
+
+BUILD SUCCESSFUL in 49s
+8 actionable tasks: 8 executed
